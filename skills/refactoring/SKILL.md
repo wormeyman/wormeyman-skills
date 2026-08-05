@@ -35,6 +35,16 @@ A quick empirical check when unsure: **delete a line or invert a condition insid
 
 **3. A clean tree, committed.** Commit the working baseline before restructuring. Then a bad refactor is `git reset`, not an archaeology exercise, and the diff you eventually present contains only the restructuring.
 
+**4. Thirty seconds of provenance, before you read any code.** Some of the most expensive constraints are invisible in the source and live only in repository metadata, so reading the code more carefully will never surface them:
+
+```bash
+git remote -v                                   # is there an upstream?
+git rev-list --left-right --count upstream/HEAD...HEAD 2>/dev/null   # ahead/behind
+git submodule status                            # vendored, separately-versioned code
+```
+
+A repo that tracks an upstream is a fork, and restructuring inherited files turns every future merge into conflict resolution - a cost that never appears in the diff you are reviewing. This check is cheap, and skipping it is how a well-argued refactoring plan ends up being the wrong thing to do at all. Do it first.
+
 ## Step 1: Find candidates from evidence, not appearance
 
 Similar-*looking* code is the most common false lead in refactoring. Two files can share a shape because they do the same job, or because they solve parallel problems that will drift apart. Merging the second kind couples things that want to move independently, and you usually discover this months later when every change to one forces an awkward change to the other.

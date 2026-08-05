@@ -97,6 +97,12 @@ zero commits are parallel evolution, and merging them couples things that want
 to drift apart. That measurement works identically on C# and TypeScript, which
 is most of why the skill is language-agnostic at all.
 
+Honesty about that script, though: when I A/B tested the skill, **the model
+reached for git history on its own even without it**. The script makes the
+measurement consistent and normalised rather than ad hoc, which is worth having
+- but it is not where the skill earns its keep. That turned out to be somewhere
+I did not predict, which is the next section.
+
 The other three departures:
 
 **It assesses the safety net before trusting it.** "Behavior-preserving under
@@ -122,6 +128,44 @@ near-identical files - should not be touched, on the evidence that they share
 0-2 commits each and mirror upstream files that version independently. Reporting
 the refactor you considered and rejected, with the number that killed it, saves
 the next person the whole investigation.
+
+#### Does it actually help?
+
+I A/B tested it: three realistic prompts against two real repos, each run twice,
+with and without the skill, graded by a separate agent told to mark strictly and
+verify claims against the repos. **18/18 assertions with it, 11/18 without**, at
+a cost of about 25% more tokens and 80 seconds more wall time per run.
+
+But the aggregate hides the finding, which is that the benefit is **narrow and
+lopsided**:
+
+| case | with | without |
+| --- | --- | --- |
+| Split a 2,700-line file (repo is a fork) | 6/6 | **1/6** |
+| Modernise imperative C# (transpiles to Lua) | 6/6 | 5/6 |
+| Survey a Vue app and rank the work | 6/6 | 5/6 |
+
+Two of the three cases barely separate. In those, the constraint is written down
+in the repo's own `CLAUDE.md` and README, and a careful agent finds it either
+way - the skill adds one finding and a lot of runtime.
+
+The first case is different in kind. Without the skill the model produced a
+confident, well-evidenced, nine-module refactoring plan, having correctly
+analysed churn and found the characterisation-test harness - and never once ran
+`git remote -v`. The repo is a fork sitting 399 commits ahead of a live
+upstream. It also called the safety net "unusually good" and staked its
+recommendation on that, when the suite it was pointing at never runs in CI.
+
+So the real lesson is **not** "measure co-change". It is that the constraints
+which sink a refactor are disproportionately the ones **not visible in the
+source**: whether the repo is a fork, whether a suite actually runs in CI,
+whether a file is generated. Reading the code more carefully never surfaces
+those, so the skill now spends thirty seconds on repository provenance before
+it reads anything at all.
+
+The eval also embarrassed one of my own claims, which is the other reason to run
+one: I had predicted the co-change script would be the differentiator. It was
+not.
 
 ## Install
 
