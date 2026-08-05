@@ -1,7 +1,7 @@
 # wormeyman-skills
 
 Agent skills I actually use, kept here so they survive a machine and so other
-people can take them. Both were written against real work rather than imagined
+people can take them. All were written against real work rather than imagined
 work, and the design notes below are the part worth reading - the skills
 themselves are short.
 
@@ -73,6 +73,99 @@ paragraphs paraphrasing it.
 
 It also warns against guessing. A wrong fact in a handoff is worse than an
 omission, because the next session will act on it.
+
+### [`refactoring`](skills/refactoring)
+
+Decides whether code is worth refactoring, finds the candidates from evidence,
+and knows the cases where duplication is deliberate and must be left alone.
+Language-agnostic - it was built against a TypeScript SPA, a forked TS monorepo,
+and a C# solution at the same time.
+
+Published refactoring skills are not scarce, and they broadly agree on the
+criteria: knowledge duplication is bad, deep nesting is bad, magic numbers are
+bad, do not refactor speculatively. Those are correct. The gap is that they are
+**criteria without a method**. Every one of them rests on "abstract what would
+change together" and then leaves you to eyeball whether two files would change
+together - which is exactly the judgement people get wrong, because
+similar-looking code is the most common false lead in refactoring.
+
+Git already recorded the answer. The skill ships
+[`scripts/co-change.sh`](skills/refactoring/scripts/co-change.sh), which ranks
+file pairs by how often they appear in the same commit, normalised so a busy
+file does not pair with everything. Two files that look like twins and share
+zero commits are parallel evolution, and merging them couples things that want
+to drift apart. That measurement works identically on C# and TypeScript, which
+is most of why the skill is language-agnostic at all.
+
+Honesty about that script, though: when I A/B tested the skill, **the model
+reached for git history on its own even without it**. The script makes the
+measurement consistent and normalised rather than ad hoc, which is worth having
+- but it is not where the skill earns its keep. That turned out to be somewhere
+I did not predict, which is the next section.
+
+The other three departures:
+
+**It assesses the safety net before trusting it.** "Behavior-preserving under
+existing tests" means nothing until you know what the tests prove. So the skill
+checks coverage of the specific code being moved, and checks *what CI actually
+runs* - one repo here has 159 end-to-end specs holding nearly all its real
+coverage and none of them run in CI, so a green pipeline proves about 7 unit
+files. It also suggests deleting a line to confirm something goes red, because
+that answers the question in thirty seconds.
+
+**It has an exception list for duplication that must stay.** Forks that merge
+upstream, ports pinned to an external spec, generated output, and code that
+cross-compiles to a second target. Two real cases from the repos it was built
+on. In one, two loops that could obviously be one are deliberately separate;
+collapsing them type-checks, reads as a pure simplification, and is a filed bug.
+In the other, the C# transpiles to Lua, so LINQ, `yield return` and `try`/`catch`
+are all forbidden - meaning the single most likely "cleanup" an agent would
+propose compiles fine and silently breaks the build for the other target.
+
+**"No refactor needed" is a result.** The survey that produced this skill
+concluded that the most obvious-looking target in the codebase - seven pairs of
+near-identical files - should not be touched, on the evidence that they share
+0-2 commits each and mirror upstream files that version independently. Reporting
+the refactor you considered and rejected, with the number that killed it, saves
+the next person the whole investigation.
+
+#### Does it actually help?
+
+I A/B tested it: three realistic prompts against two real repos, each run twice,
+with and without the skill, graded by a separate agent told to mark strictly and
+verify claims against the repos. **18/18 assertions with it, 11/18 without**, at
+a cost of about 25% more tokens and 80 seconds more wall time per run.
+
+But the aggregate hides the finding, which is that the benefit is **narrow and
+lopsided**:
+
+| case | with | without |
+| --- | --- | --- |
+| Split a 2,700-line file (repo is a fork) | 6/6 | **1/6** |
+| Modernise imperative C# (transpiles to Lua) | 6/6 | 5/6 |
+| Survey a Vue app and rank the work | 6/6 | 5/6 |
+
+Two of the three cases barely separate. In those, the constraint is written down
+in the repo's own `CLAUDE.md` and README, and a careful agent finds it either
+way - the skill adds one finding and a lot of runtime.
+
+The first case is different in kind. Without the skill the model produced a
+confident, well-evidenced, nine-module refactoring plan, having correctly
+analysed churn and found the characterisation-test harness - and never once ran
+`git remote -v`. The repo is a fork sitting 399 commits ahead of a live
+upstream. It also called the safety net "unusually good" and staked its
+recommendation on that, when the suite it was pointing at never runs in CI.
+
+So the real lesson is **not** "measure co-change". It is that the constraints
+which sink a refactor are disproportionately the ones **not visible in the
+source**: whether the repo is a fork, whether a suite actually runs in CI,
+whether a file is generated. Reading the code more carefully never surfaces
+those, so the skill now spends thirty seconds on repository provenance before
+it reads anything at all.
+
+The eval also embarrassed one of my own claims, which is the other reason to run
+one: I had predicted the co-change script would be the differentiator. It was
+not.
 
 ## Install
 
