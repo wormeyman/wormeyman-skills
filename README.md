@@ -1,7 +1,7 @@
 # wormeyman-skills
 
 Agent skills I actually use, kept here so they survive a machine and so other
-people can take them. Both were written against real work rather than imagined
+people can take them. All were written against real work rather than imagined
 work, and the design notes below are the part worth reading - the skills
 themselves are short.
 
@@ -73,6 +73,55 @@ paragraphs paraphrasing it.
 
 It also warns against guessing. A wrong fact in a handoff is worse than an
 omission, because the next session will act on it.
+
+### [`refactoring`](skills/refactoring)
+
+Decides whether code is worth refactoring, finds the candidates from evidence,
+and knows the cases where duplication is deliberate and must be left alone.
+Language-agnostic - it was built against a TypeScript SPA, a forked TS monorepo,
+and a C# solution at the same time.
+
+Published refactoring skills are not scarce, and they broadly agree on the
+criteria: knowledge duplication is bad, deep nesting is bad, magic numbers are
+bad, do not refactor speculatively. Those are correct. The gap is that they are
+**criteria without a method**. Every one of them rests on "abstract what would
+change together" and then leaves you to eyeball whether two files would change
+together - which is exactly the judgement people get wrong, because
+similar-looking code is the most common false lead in refactoring.
+
+Git already recorded the answer. The skill ships
+[`scripts/co-change.sh`](skills/refactoring/scripts/co-change.sh), which ranks
+file pairs by how often they appear in the same commit, normalised so a busy
+file does not pair with everything. Two files that look like twins and share
+zero commits are parallel evolution, and merging them couples things that want
+to drift apart. That measurement works identically on C# and TypeScript, which
+is most of why the skill is language-agnostic at all.
+
+The other three departures:
+
+**It assesses the safety net before trusting it.** "Behavior-preserving under
+existing tests" means nothing until you know what the tests prove. So the skill
+checks coverage of the specific code being moved, and checks *what CI actually
+runs* - one repo here has 159 end-to-end specs holding nearly all its real
+coverage and none of them run in CI, so a green pipeline proves about 7 unit
+files. It also suggests deleting a line to confirm something goes red, because
+that answers the question in thirty seconds.
+
+**It has an exception list for duplication that must stay.** Forks that merge
+upstream, ports pinned to an external spec, generated output, and code that
+cross-compiles to a second target. Two real cases from the repos it was built
+on. In one, two loops that could obviously be one are deliberately separate;
+collapsing them type-checks, reads as a pure simplification, and is a filed bug.
+In the other, the C# transpiles to Lua, so LINQ, `yield return` and `try`/`catch`
+are all forbidden - meaning the single most likely "cleanup" an agent would
+propose compiles fine and silently breaks the build for the other target.
+
+**"No refactor needed" is a result.** The survey that produced this skill
+concluded that the most obvious-looking target in the codebase - seven pairs of
+near-identical files - should not be touched, on the evidence that they share
+0-2 commits each and mirror upstream files that version independently. Reporting
+the refactor you considered and rejected, with the number that killed it, saves
+the next person the whole investigation.
 
 ## Install
 
