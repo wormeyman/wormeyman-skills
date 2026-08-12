@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accessibility audit fixture</title>
+
+<!--
+  FIXTURE - deliberately broken. Do not fix it.
+
+  Run the accessibility-audit skill against this page. It must find every
+  planted defect below. If it misses one, the skill is wrong, not the fixture.
+
+  Note there is no <main>, no lang attribute, and no <h2>. Those are defects 5,
+  6 and 7, not oversights.
+
+  PLANTED DEFECTS
+   1. .light-fail   - contrast fails in LIGHT only (token never redefined for dark)
+   2. .dark-fail    - contrast fails in DARK only (token never redefined for light)
+   3. .scroll       - overflowing container with no tabindex, role or label
+   4. table         - no <caption>, no scope on any th, row headers marked as td
+   5. document      - no <main> landmark
+   6. <html>        - no lang attribute
+   7. headings      - h1 jumps straight to h3
+   8. a             - outline:none with no replacement focus style
+   9. img           - no alt attribute
+  10. .status       - state conveyed by color alone, no text cue
+
+  Defects 1 and 2 are the point of the whole exercise: a single-theme audit
+  finds one and reports the page clean of the other.
+-->
+
+<style>
+  :root{
+    --ground:#F4F6F7;
+    --surface:#FFFFFF;
+    --ink:#12171B;
+    --accent:#22565F;
+    --bad:#964036;
+    /* DEFECT 1: light grey never redefined for dark. Fine on a dark ground,
+       far too pale on a light one. */
+    --muted:#8C979E;
+    /* DEFECT 2: dark slate never redefined for light. Fine on a light ground,
+       nearly invisible on a dark one. */
+    --deep:#3A4A52;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0E1316;
+      --surface:#151B1F;
+      --ink:#E7EDEF;
+      --accent:#74BAC5;
+      --bad:#DD8B80;
+      /* --muted and --deep deliberately NOT redefined */
+    }
+  }
+
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,system-ui,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    margin:0;
+    padding:40px 20px 80px;
+  }
+  .wrap{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+  h1{font-size:32px;margin:0}
+  h3{font-size:20px;margin:0}
+  p{margin:0;max-width:65ch}
+
+  .light-fail{color:var(--muted)}
+  .dark-fail{color:var(--deep)}
+
+  /* DEFECT 8: focus ring removed, nothing put back */
+  a{color:var(--accent)}
+  a:focus{outline:none}
+
+  .scroll{overflow-x:auto;border:1px solid var(--muted);border-radius:3px;background:var(--surface)}
+  table{border-collapse:collapse;width:100%;min-width:820px;font-size:15px}
+  th,td{text-align:left;padding:10px 16px;border-bottom:1px solid var(--muted)}
+  thead th{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+
+  /* DEFECT 10: colour is the only carrier of state */
+  .status{font-weight:700;color:var(--bad)}
+  .status.good{color:#3B7355}
+
+  figure{margin:0}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <h1>Accessibility audit fixture</h1>
+
+  <p>This page is deliberately broken. Ten defects are planted in it, listed in the
+  source comment. Two of them are visible in only one colour theme.</p>
+
+  <p class="light-fail">This sentence uses a token that was never redefined for dark
+  mode. It is legible on a dark background and much too pale on a light one, so a
+  dark-only audit reports it clean.</p>
+
+  <p class="dark-fail">This sentence has the opposite problem. It is legible on a light
+  background and nearly invisible on a dark one, so a light-only audit reports it clean.</p>
+
+  <h3>Heading level skipped</h3>
+
+  <p>The heading above is an h3 following an h1. Anyone navigating by heading loses the
+  structure. See <a href="https://www.w3.org/WAI/WCAG22/quickref/">the WCAG 2.2 quick
+  reference</a> - and try tabbing to that link to watch the focus ring fail to appear.</p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Tool that catches it</th>
+          <th>Runs by default</th>
+          <th>State</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Colour contrast</td>
+          <td>Lighthouse, partially</td>
+          <td>Rendered theme only</td>
+          <td><span class="status">failing</span></td>
+        </tr>
+        <tr>
+          <td>Scrollable region focusable</td>
+          <td>axe-core</td>
+          <td>No</td>
+          <td><span class="status">failing</span></td>
+        </tr>
+        <tr>
+          <td>Table header scope</td>
+          <td>Manual review</td>
+          <td>No</td>
+          <td><span class="status">failing</span></td>
+        </tr>
+        <tr>
+          <td>Heading order</td>
+          <td>Lighthouse</td>
+          <td>Yes</td>
+          <td><span class="status good">caught</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The table above sits in a scrolling container with no tab stop, so it cannot be
+  reached by keyboard. It also has no caption, no scope on any header, and its first
+  column is marked up as data when it is really a row header.</p>
+
+  <figure>
+    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iODAiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iODAiIGZpbGw9IiM3NEJBQzUiLz48L3N2Zz4=" width="240" height="80">
+  </figure>
+
+  <p>The image above has no alt attribute at all, which is different from an empty one.
+  An empty alt says "decorative, skip me". A missing alt leaves a screen reader to read
+  out the file name.</p>
+
+</div>
+
+</body>
+</html>
