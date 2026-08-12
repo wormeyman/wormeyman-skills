@@ -167,6 +167,75 @@ The eval also embarrassed one of my own claims, which is the other reason to run
 one: I had predicted the co-change script would be the differentiator. It was
 not.
 
+### [`accessibility-audit`](skills/accessibility-audit)
+
+Audits a page against WCAG 2.2 AA, reports what it finds, fixes it once you
+approve, then re-runs to show the score actually moved. Works on a live URL, a
+local file, or a published Claude artifact.
+
+Chrome DevTools already ships an accessibility skill and it is a good one:
+accessibility tree, form labels, ARIA, focus traps, tap targets. This does not
+replace it, and its own text says so and defers to it. It exists for one
+observation that skill does not make.
+
+**Lighthouse audits one theme, whichever the browser happens to be in, and never
+mentions which.**
+
+I found that the usual way. I ran an audit on a page I had just built, got 87
+with no contrast findings, and reported it as fine. The browser was in dark mode.
+Forced to light, the same page scored 77 with 41 failing elements.
+
+A moving score is the merciful version. The skill ships a fixture with two color
+tokens that were never redefined per theme, one too pale and one too dark, and it
+scores **62 in both**. The contrast failures behind that identical number do not
+overlap at all:
+
+| Theme | What Lighthouse flags |
+| --- | --- |
+| Dark | `p.dark-fail`, `span.status.good` |
+| Light | `p.light-fail`, and four `<th>` |
+
+Fix everything the dark run reports and five failures remain, still at 62. A
+stable score across themes is not evidence that the themes are equally sound, and
+nothing in the output hints otherwise. That is the silent-failure test from the
+note at the bottom of this README, which is why the skill's central mechanic is a
+**matrix rather than a run**: light, dark, mobile, every time.
+
+Three other departures:
+
+**It computes contrast instead of sampling it.** The skill walks every
+text-bearing element, resolves the real background by climbing ancestors until it
+finds one that is not transparent, and applies the threshold that element's
+computed size and weight actually call for. It reports exact ratios, because
+"fails" does not tell you what to change the color to. There is also a pre-check
+for the palette itself, since contrast is far cheaper to fix in six token values
+than in 41 rendered elements.
+
+**It runs the checks Lighthouse skips.** axe has a rule requiring scrollable
+regions to be keyboard reachable. Lighthouse does not run it, so a wide table in
+an `overflow-x:auto` container is unreachable by keyboard and nothing says a word.
+Lighthouse's table audits return "not applicable", which on a quick read is
+indistinguishable from a pass. Color used as the only signal has no automated
+check anywhere, in any tool.
+
+**A published artifact cannot be audited at its own URL.** Point Lighthouse at
+`claude.ai/code/artifact/...` and you have audited the wrapper page. You have to
+serve the source locally inside the same skeleton the publisher wraps it in.
+Doing that separates your score from the host's, which matters: `html-has-lang` is
+worth 7 points and belongs to the `<html>` tag, and you do not write that tag.
+
+#### Does it actually work?
+
+The fixture carries ten planted defects and a manifest in its source comment.
+Eight are caught by script and split across the two themes. A ninth needs the
+focus probe. The tenth, state carried by color alone, has no automated check
+anywhere, and the skill says so rather than implying the manual pass is optional.
+
+While verifying it I found an eleventh defect I had not planted: a hardcoded green
+in the fixture's own status column, never redefined for dark, failing at 3.12:1.
+The sweep caught it before I did, which is the most reassuring thing I can say
+about it.
+
 ## Install
 
 Copy a skill into your skills directory:
@@ -184,7 +253,7 @@ triggers on its own.
 
 ## A note on writing skills
 
-Both of these got shorter as they got better. The temptation is to write
+These got shorter as they got better. The temptation is to write
 exhaustive rules; what actually works is explaining _why_ something matters and
 trusting the model with the rest. Where these do give a hard instruction - use a
 real tool rather than grep, use absolute paths - it is because the failure mode
