@@ -84,6 +84,7 @@ Never a single run. Minimum three:
 
 Gotchas that cost real time:
 
+- **A run reporting 0 across every category, with 0 passed *and* 0 failed, is a failed run, not a score.** Nothing was measured. Check `runtimeError` in the JSON and retry before you conclude anything. Live sites behind a WAF or CDN throw this: a real audit of a production WordPress site returned `ERRORED_DOCUMENT_REQUEST` with a 403 on the first attempt and scored 96 on an immediate retry, with no change to anything. The distinction matters because a genuine 0 and a failed run look identical in the summary, and only one of them is worth reporting.
 - `lighthouse_audit` rejects `outputDirPath` outside the configured workspace roots. Omit it and take the temp path from the result, then copy the HTML report somewhere durable if you want to keep it.
 - The result summary's "Failed: N" counts every category, not just accessibility. Read the JSON for the real accessibility failures.
 - Never read `report.json` raw. It runs to hundreds of KB. Extract with the script in `references/scripts.md`.
@@ -114,6 +115,10 @@ Group by severity, and state clearly which findings are yours to fix versus the 
 
 Report per theme. "95 in both themes" and "95 light, 77 dark" are very different results.
 
+**If the page ships no `prefers-color-scheme` rules at all, say the matrix was confirmatory.** Plenty of sites have one theme. Reporting three identical runs as though they were three independent findings overstates the work and buries the real ones. Say the site has a single theme, that you verified it rather than assumed it, and move on. The structural check reports `prefersDarkSupported` for exactly this call - but treat a `false` there as a prompt to confirm by running the other theme, never as permission to skip it.
+
+**Watch the denominator on mobile.** Mobile runs fewer audits than desktop, so a one-point gap between them is usually arithmetic rather than a defect. Compare the failure lists, not the scores, before reporting a difference.
+
 ## Step 6 - Fix, then verify
 
 Apply fixes, then **re-run the full matrix**. A fix verified in one theme is not verified.
@@ -131,6 +136,8 @@ State the before and after numbers per theme. If a number did not move, say so r
 | "It's a static page, keyboard access is moot" | Scrollable regions are interactive whether you intended it or not. |
 | "I'll read the Lighthouse JSON to find failures" | It is hundreds of KB. Use the extractor. |
 | "Score went 77 to 95, done" | Re-run every theme. And name what caps the remaining 5. |
+| "It scored 0, the page must be broken" | 0 with nothing passed and nothing failed means the run failed. Check `runtimeError` and retry. |
+| "Desktop 96, mobile 95, so mobile is worse" | Mobile runs fewer audits. Compare failure lists, not scores. |
 
 ## Verifying this skill still works
 
