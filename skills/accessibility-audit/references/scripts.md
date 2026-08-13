@@ -97,6 +97,10 @@ Run once per theme. Covers the things Lighthouse either does not test or reports
   });
   return {
     scheme: matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light',
+    prefersDarkSupported: [...document.styleSheets].some(s=>{
+      try { return [...s.cssRules].some(r=>r.conditionText && r.conditionText.includes('prefers-color-scheme')); }
+      catch(e) { return false; }   // cross-origin sheet, cannot read
+    }),
     mainLandmarks: document.querySelectorAll('main').length,
     htmlLang: document.documentElement.lang || '(none)',
     headingOrder: [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].map(h=>h.tagName).join(' '),
@@ -130,6 +134,7 @@ Reading the output:
 - `scrollRegionsKeyboardReachable: false` means keyboard users cannot scroll your wide tables. Lighthouse does not test this.
 - `thMissingScope` above 0 is a fix even though Lighthouse says nothing.
 - `bodyScrollsSideways: true` fails reflow. Check it again at a 320px viewport.
+- `prefersDarkSupported: false` means the page ships no dark-theme rules, so the two theme runs will agree. Report the matrix as confirmatory rather than as two findings. Treat it as a prompt to confirm, never as permission to skip the second run: cross-origin stylesheets throw on `cssRules` and are counted as `false`, so a themed page served from a CDN can report `false` and still have a dark theme.
 - `focusableWithNoVisibleFocus` lists anything that takes focus and shows nothing. The probe focuses each candidate, reads its computed style, and restores focus afterwards. It catches `outline:none` with no replacement, which is the single most common focus bug.
 
 ---
