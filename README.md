@@ -236,6 +236,37 @@ in the fixture's own status column, never redefined for dark, failing at 3.12:1.
 The sweep caught it before I did, which is the most reassuring thing I can say
 about it.
 
+### [`asking-for-decisions`](skills/asking-for-decisions)
+
+Put a decision to the user as an interactive prompt with grounded options,
+rather than asking it in prose. Covers what counts as a decision, how to write
+options worth choosing between, and the tool mechanics.
+
+The design point is where the habit breaks. It is not the obvious forks, which
+anyone handles. It is the end of a long report. You have finished something, you
+are writing it up, the prose is flowing, and a question occurs to you that feels
+like a natural closing sentence. So you write it as one, and it goes out buried
+in the last paragraph instead of as something the reader can act on.
+
+That is not a hypothetical. It happened in the session that produced this skill.
+Every other decision that session went into a prompt correctly. The one that
+slipped was at the end of a long write-up about finishing a different skill,
+which is exactly where the rule says to watch. I had to be asked for the prompt.
+
+So the skill's check is mechanical rather than a matter of judgement: before
+sending a long message, read your own last paragraph. Anything in it the reader
+could act on belongs in a prompt.
+
+The other half is that the options are the whole value. "Option A: darken it /
+Option B: change the text" makes the reader do the thinking. "Darken the green to
+`#00856E`, which keeps white text and computes to 4.58:1" lets them decide in five
+seconds. If you do not have the numbers yet, you are not ready to ask.
+
+One thing worth being explicit about: **this skill is the craft, not the
+trigger.** A skill has to be invoked, and this behavior has to be automatic, so
+the rule itself lives in `CLAUDE.md` where it fires every time. Keeping both is
+the point. The rule remembers to ask; this file explains how to ask well.
+
 ## Install
 
 Copy a skill into your skills directory:
