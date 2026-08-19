@@ -2,8 +2,8 @@
 name: session-handoff
 description: >-
   Generate a self-contained "resume this work" handoff prompt and copy it to the
-  clipboard with pbcopy, so the user can paste it into a fresh session that has
-  zero prior context. Use this whenever the user asks for a prompt to
+  clipboard, so the user can paste it into a fresh session that has zero prior
+  context. Use this whenever the user asks for a prompt to
   continue/resume/pick up work later, to "pbcopy a prompt", to hand off to a new
   session or agent, or says things like "give me a prompt to keep going in a new
   chat", "write me a handoff", "copy a prompt so I can resume this tomorrow", or
@@ -18,8 +18,7 @@ description: >-
 
 Turn everything learned in this session into one **self-contained prompt** the
 user can paste into a brand-new session (or hand to another agent) that knows
-*nothing* about this conversation, then put that prompt on their clipboard with
-`pbcopy`.
+*nothing* about this conversation, then put that prompt on their clipboard.
 
 The whole value is that the future session has **zero context**. It cannot see
 this chat, your scratchpad, or your reasoning. If a fact isn't in the prompt (or
@@ -90,17 +89,29 @@ point at them; if it's a plain chat, make the prompt fully self-standing.
 
 ## Put it on the clipboard
 
-Write the prompt to a file, then pipe that file to `pbcopy` - this avoids shell
-quoting mangling multi-line text and backticks, and leaves a copy the user can
-re-grab:
+Write the prompt to a file, then pipe that file to the clipboard - this avoids
+shell quoting mangling multi-line text and backticks, and leaves a copy the user
+can re-grab:
 
 ```bash
-pbcopy < /path/to/handoff-prompt.md
+# Pick whichever exists: pbcopy on macOS, clip.exe on Windows and WSL,
+# xclip/wl-copy on a Linux desktop.
+if command -v pbcopy >/dev/null; then pbcopy < /path/to/handoff-prompt.md
+elif command -v clip.exe >/dev/null; then clip.exe < /path/to/handoff-prompt.md
+elif command -v clip >/dev/null; then clip < /path/to/handoff-prompt.md
+elif command -v wl-copy >/dev/null; then wl-copy < /path/to/handoff-prompt.md
+elif command -v xclip >/dev/null; then xclip -selection clipboard < /path/to/handoff-prompt.md
+else echo "NO_CLIPBOARD_TOOL"; fi
 ```
 
 Prefer the session scratchpad directory for the file if one is defined; otherwise
-a temp path is fine. `pbcopy` is macOS; if it's ever missing, say so and print the
-prompt in a copyable block instead.
+a temp path is fine.
+
+**Check the tool exists rather than assuming one.** `pbcopy` is macOS only;
+`clip.exe` covers Windows AND WSL, because WSL executes Windows binaries. If none
+is found, say so plainly and print the prompt in a copyable block - a clipboard
+step that silently did nothing is the one failure the user cannot see, because
+they only find out when they paste stale content into the fresh session.
 
 ## Close the loop
 
