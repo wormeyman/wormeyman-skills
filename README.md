@@ -236,6 +236,37 @@ in the fixture's own status column, never redefined for dark, failing at 3.12:1.
 The sweep caught it before I did, which is the most reassuring thing I can say
 about it.
 
+### [`publishing-behind-cloudflare-access`](skills/publishing-behind-cloudflare-access)
+
+Puts a login in front of a static page using Cloudflare Access, without buying a
+domain, moving DNS, or writing auth code. Built for the case where a report or
+artifact has to go online but only two named people should see it.
+
+Most of the skill is the ordering problem, because that is where the damage is.
+
+**Deploying the page and adding the login are two steps, and doing them in that
+order publishes the document.** There is no warning. The page is simply live,
+and for confidential material that window is indexable and unrecoverable. So the
+whole sequence is built around deploying with the public URL switched off,
+attaching Access, and only then turning the URL on.
+
+The rest is the things that cost an hour each:
+
+- The Access bootstrap is **dashboard-only**. Before it is clicked, every Access
+  API call fails, including reads, and the error names the button.
+- Cloudflare MCP tokens are often **read-only**. Writes fail with
+  `10000: Authentication error`, which reads like a broken credential rather
+  than a scope limit. Probe with a throwaway write before planning around it.
+- Access can attach **to a Worker by name**, which covers its `workers.dev` URL,
+  routes, custom domains and previews at once. That removes the domain question
+  entirely, which matters when the obvious alternative - moving a business
+  domain onto Cloudflare - would also move its MX records.
+
+It also answers the question people actually ask. They want a password. Access
+does not do passwords, and that is the better outcome: a shared password gets
+forwarded, cannot be revoked for one person, and leaves no record of who used
+it. The skill says that in two sentences and moves on.
+
 ### [`asking-for-decisions`](skills/asking-for-decisions)
 
 Put a decision to the user as an interactive prompt with grounded options,

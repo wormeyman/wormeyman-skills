@@ -105,7 +105,9 @@ These are real WCAG failures with no Lighthouse audit behind them. Run the **str
 
 - **Keyboard access to scrollable regions.** Any `overflow-x: auto` container holding a wide table or code block is unreachable by keyboard without `tabindex="0"`. Lighthouse does not run axe's `scrollable-region-focusable` rule at all.
 - **Table header semantics.** `th` without `scope`, and first-column cells marked up as `td` when they are functionally row headers. Lighthouse's table audits return "not applicable" and tell you nothing.
-- **Color as the only signal.** Status shown by red text alone, a colored rail with no text label, a chart series distinguished only by hue. No automated tool catches this. Read the page and ask what a colorblind user loses.
+- **Color as the only signal.** Status shown by red text alone, a colored rail with no text label, a chart series distinguished only by hue. Run the **polarity probe** from `references/scripts.md`, then read what it surfaces.
+  The trap is not the empty cell, it is the **full** one. `+$1,000` and `+$130` are both complete, specific, correctly formatted values, and on a real page the first was good news and the second was bad, distinguishable only by being green or red. Asking "what does a colorblind user lose here" answers "nothing, the numbers are right there" and you move on. **Ask instead whether the text alone reveals which direction is better.** A signed number, a bare percentage, a date, a name: none of them carry polarity.
+- **Two colors encoding opposite states.** Run the **status-pair luminance check** from `references/scripts.md`. Contrast tools compare each color to its background; both can pass and still be the same brightness as each other, leaving hue as the only difference. Greyscale and color vision deficiency both erase hue.
 - **Focus visibility.** Tab through interactively. Anything focusable needs a visible `:focus-visible` state, including containers you just gave `tabindex="0"`.
 - **Reflow.** At 320px wide, the page body must not scroll sideways. Wide content scrolls inside its own container.
 
@@ -154,7 +156,7 @@ Expected result. Eight are caught by script:
 | Both runs | table with no caption and four `th` with no scope |
 | Focus probe | link with `outline:none` and no replacement |
 
-The tenth - state carried by color alone in the status column - has no automated check anywhere. You find it by reading the page. If a run reports the fixture clean on that one, that is the expected behavior of the tools and the reason the manual pass in Step 4 exists.
+The tenth - state carried by color alone in the status column - has no *definitive* check. The polarity probe surfaces it as a candidate (`span.status.good`, text "caught", which does not reveal whether being caught is good or bad), alongside two false positives from `.light-fail` and `.dark-fail`, whose class names describe the planted defect rather than a UI state. **Three candidates, one real.** That ratio is the point: the probe generates leads, you decide. If a run reports the fixture clean on defect 10 without looking at the candidates, that is the failure the manual pass in Step 4 exists to prevent.
 
 If a script-detectable defect is missed, the skill has regressed. Fix the skill, not the fixture.
 

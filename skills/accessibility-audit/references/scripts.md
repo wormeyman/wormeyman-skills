@@ -1,6 +1,6 @@
 # Scripts
 
-Four scripts. The first three run in the page via `evaluate_script`. The fourth runs in bash against a saved Lighthouse report.
+Six scripts. All but one run in the page via `evaluate_script`; the Lighthouse extractor runs in bash against a saved report.
 
 All of these were written against a real audit and returned correct results on a page where Lighthouse's own contrast audit reported a false pass.
 
@@ -171,3 +171,114 @@ print(", ".join(na))
 The glob path is macOS. On Linux the reports land under `/tmp`.
 
 Read the "not applicable" list. It is the honest answer to "what did this audit not check", and it is where the false confidence lives.
+
+
+---
+
+## 5. Polarity probe
+
+Run once per page. Finds elements whose **class** encodes a good/bad direction
+while their **visible text** does not, which means colour is the only thing
+carrying polarity. WCAG 1.4.1.
+
+This is a lead generator, not a verdict. Read every candidate.
+
+```js
+() => {
+  const POLARITY_CLASS = /(worse|better|bad|good|up|down|pos|neg|pass|fail|error|success|warn|danger|alert|critical|ok|high|low|gain|loss|increase|decrease)/i;
+  const POLARITY_TEXT  = /\b(worse|better|worsened|improved|up|down|higher|lower|increase[ds]?|decrease[ds]?|gain(ed)?|lost|loss|rose|fell|good|bad|pass(ed|ing)?|fail(ed|ing|ure)?|error|success|ok|safe|unsafe|risk|warning|critical|added|removed|gone|kept|same|flat|unchanged|no change)\b/i;
+  const out = [];
+  document.querySelectorAll('*').forEach(el => {
+    const cls = typeof el.className === 'string' ? el.className : '';
+    if (!cls || !POLARITY_CLASS.test(cls)) return;
+    const own = [...el.childNodes].filter(n => n.nodeType === 3)
+      .map(n => n.textContent).join(' ').trim();
+    if (!own) return;                          // must render its own text
+    const visible = el.textContent.trim();     // includes child labels
+    if (POLARITY_TEXT.test(visible)) return;
+    out.push({
+      sel: el.tagName.toLowerCase() + '.' + cls.trim().split(/\s+/).join('.'),
+      text: visible.slice(0, 40),
+      color: getComputedStyle(el).color
+    });
+  });
+  const agg = {};
+  out.forEach(o => { agg[o.sel] = (agg[o.sel] || 0) + 1; });
+  return { candidateCount: out.length, bySelector: agg, candidates: out.slice(0, 20) };
+}
+```
+
+**Read `bySelector`, not `candidateCount`.** One selector with 55 hits is a
+component that never labels its direction, which is one fix. Fifty selectors
+with one hit each is mostly noise.
+
+**Test the visible text, not the direct text nodes.** An earlier version of this
+probe read only `nodeType === 3` children and so could not see a label nested in
+a child `<span>`. It scored a fixed page and a broken page identically at 81
+candidates. If your counts do not move after a fix, suspect the probe before the
+fix.
+
+**Expect false positives, and do not tune them away.** Class names that describe
+a *defect* or a *heading* rather than a UI state will match: `.light-fail`,
+`.dark-fail`, `.verdict.v-bad` all surfaced on real runs with perfectly clear
+text. Widening `POLARITY_TEXT` to silence them also silences real findings.
+
+Measured behaviour, two real pages:
+
+| Page | Candidates | Real |
+|---|---|---|
+| Skill fixture | 3 | 1 (`span.status.good`) |
+| Report before fixing | 81 | 71 across `.worse`, `.better`, `.num.up` |
+| Same report after fixing | 18 | 0 material |
+
+The 81 to 18 drop is the check. An unchanged count means nothing was fixed.
+
+
+---
+
+## 6. Status-pair luminance check
+
+Run whenever two colors encode opposite states: good/bad, pass/fail, up/down.
+
+Contrast tools compare each color to its **background**. Both can pass 4.5:1 and
+still be the same brightness as **each other**, which means the only thing
+separating them is hue. Greyscale printing, a cheap projector, and color vision
+deficiency all erase hue and leave the pair identical.
+
+```python
+def lin(c):
+    c = c / 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+def lum(h):
+    h = h.lstrip("#")
+    r, g, b = (lin(int(h[i:i+2], 16)) for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+def ratio(a, b):
+    la, lb = lum(a), lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+GOOD, BAD = "#47682d", "#8c3a28"
+print(f"good vs bad: {ratio(GOOD, BAD):.2f}:1")   # measured 1.19:1
+```
+
+**Under about 3:1 between the pair, hue is doing all the work.** Fix it in one
+of two ways, and prefer the first:
+
+1. Add a text cue, so the color stops being load-bearing at all.
+2. Widen the lightness gap between the two tokens, so the pair survives
+   greyscale.
+
+Both is better than either.
+
+Colorblind simulation is a reasonable confirmation, but **do not quote a
+specific simulated ratio**. Different simulators use different matrices and
+disagree materially: on the pair above, one run reported 1.06:1 under
+deuteranopia while the Machado 2009 severity-1.0 matrices give 1.20:1. The
+conclusion is identical and the number is not. The pair-luminance figure above
+needs no matrix and is reproducible, which is why it is the check.
+
+For the record, that pair under Machado 2009: protanopia 1.59, deuteranopia
+1.20, **tritanopia 1.03**. Tritanopia was the worst case and is the one people
+forget to test.
