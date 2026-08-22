@@ -67,7 +67,7 @@ tbody th { font-weight:500; text-align:left; }
 
 ## Color as the only signal
 
-Red text marking a bad value, a colored rail with no label, a series distinguished only by hue. No automated tool catches this. You have to read the page and ask what a colorblind user loses.
+Red text marking a bad value, a colored rail with no label, a series distinguished only by hue. The polarity probe in `scripts.md` generates candidates; you decide which are real.
 
 Add a redundant text cue:
 
@@ -76,6 +76,44 @@ Add a redundant text cue:
 ```
 
 A color-coded card is fine **if** it also carries a text chip saying "Not supported". The color then reinforces rather than carries.
+
+### The hard case: complete text, absent polarity
+
+The dangerous version is not a missing label, it is a value that looks finished.
+In a year-over-year plan table, `+$500` was a larger annual allowance (good) and
+`+$25` was a higher monthly fee (bad). Both cells were specific and correctly
+formatted, both were dollars, both carried a plus sign. Only red versus green
+said which way was up.
+
+Sign does not equal direction. Whether "more" is good depends on the row.
+
+```html
+<!-- before: polarity lives in the class, and therefore in the color -->
+<td class="worse">+$25</td>
+<td class="better">+$500</td>
+
+<!-- after: polarity lives in the text; color now reinforces -->
+<td class="worse">+$25 <span class="dir">worse</span></td>
+<td class="better">+$500 <span class="dir">better</span></td>
+```
+
+```css
+.dir {
+  font-size: .58rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  /* inherit the cell color: no new token, no new contrast pair to verify */
+}
+```
+
+Do not reach for `aria-label` or visually hidden text here. A screen reader
+would get the direction, but a **sighted** colorblind reader gets nothing, and
+they are the population this criterion is about. The cue has to be visible.
+
+On a dense table this adds a word to every changed cell. That is the cost, and
+it is the right trade: a reference table people make decisions from should not
+require distinguishing red from green under a deadline.
 
 ## No main landmark
 
