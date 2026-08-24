@@ -17,6 +17,12 @@ true before Access is attached publishes the page.
   // Flip to true ONLY after the Access policy is attached and verified.
   "workers_dev": false,
 
+  // Wrangler enables Preview URLs by default once workers_dev is true, which
+  // is a second public hostname per version. Worker-scoped Access covers them,
+  // but set this deliberately rather than inheriting it, and check one after
+  // deploying. Set false if you do not want per-version URLs at all.
+  "preview_urls": true,
+
   "observability": { "enabled": true }
 }
 ```
@@ -121,8 +127,13 @@ until you revoke tokens.
 Run before planning any write path. Distinguishes a read-only token from a
 broken one.
 
+**Workers write and Access write are separate scopes, so probe both.** A
+wrangler OAuth login commonly holds `workers (write)` with no Access scope
+whatever: it deploys the page perfectly and cannot create the application. A
+Workers probe that passes tells you nothing about Access.
+
 ```js
-// Expect "WRITE OK" or 10000: Authentication error
+// Workers write
 try {
   await cloudflare.request({
     method: "PUT",
@@ -132,6 +143,28 @@ try {
   await cloudflare.request({ method: "DELETE", path: `/accounts/${accountId}/workers/scripts/zz-perm-probe` });
 } catch (e) { /* read-only */ }
 ```
+
+```js
+// Access write. Use a GROUP, not an application: a group gates nothing until a
+// policy references it, and its body is too simple to fail validation, so the
+// only thing it can test is permission.
+const r = await cloudflare.request({
+  method: "POST", path: `/accounts/${accountId}/access/groups`,
+  body: { name: "zz-perm-probe-delete-me",
+          include: [{ email: { email: "probe@example.invalid" } }] }
+});
+if (r.result?.id) {
+  await cloudflare.request({ method: "DELETE", path: `/accounts/${accountId}/access/groups/${r.result.id}` });
+}
+```
+
+Read the error code, not the shape of the failure:
+
+| Code | Means |
+|---|---|
+| `10000: Authentication error` | Scope limit. The token cannot write here. |
+| `1010` | Validation. The body was wrong, and this says nothing about permission. Probing with an *application* and an empty `destinations` list returns exactly this. |
+| `9999: access.api.error.not_enabled` | The dashboard bootstrap has not been done. Reads fail too. |
 
 ## Turn the public URL off after the fact
 
