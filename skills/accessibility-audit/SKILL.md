@@ -82,6 +82,70 @@ Never a single run. Minimum three:
 
 `emulate` persists across navigations, so set it once per theme and run everything for that theme before switching.
 
+### Running it from the CLI instead
+
+`lighthouse_audit` needs the chrome-devtools MCP. When you do not have it - CI, a
+git hook, a headless box - the CLI does the same job:
+
+```bash
+npx -y lighthouse@latest "$URL" \
+  --only-categories=accessibility \
+  --output=json --output-path=./report.json \
+  --chrome-flags="--headless=new --blink-settings=preferredColorScheme=1" \
+  --quiet
+```
+
+Feed `report.json` straight to the extractor in `references/scripts.md`.
+
+**The default theme is dark, and almost nobody expects that.** A single
+`npx lighthouse` run with no theme flag audits the dark half and reports a number
+that reads like the whole answer. Measured on Lighthouse 13.4.1 with
+`--headless=new`, against a page built to fail contrast only in dark:
+
+| `--chrome-flags` | Painted | Score |
+|---|---|---|
+| *(none)* | **dark** | 84 |
+| `--blink-settings=preferredColorScheme=0` | **dark** | 84 |
+| `--blink-settings=preferredColorScheme=1` | light | 100 |
+| `--blink-settings=preferredColorScheme=2` or `=3` | light | 100 |
+| `--force-dark-mode` | **dark** | 84 |
+
+So the enum is `0=dark, 1=light`, anything above clamps to light. Every dark run
+painted the page's *own* `@media (prefers-color-scheme: dark)` colours, so these
+set the real media query rather than Chrome's auto-darkening. **Always pass the
+flag explicitly**, both themes, rather than leaning on a default that is not what
+you would guess and is free to change.
+
+This inverts the usual advice. [lighthouse-ci#1022](https://github.com/GoogleChrome/lighthouse-ci/issues/1022)
+is the canonical thread on testing dark mode, and it closed without a working
+answer - `Sec-CH-Prefers-Color-Scheme`, `--force-dark-mode` and
+`--enable-features=WebContentsForceDark` were all reported as no-ops. It was
+written when dark was the hard one to reach. Today dark is free and **light** is
+the one you have to ask for. Do not follow that thread's advice; measure instead.
+`WebContentsForceDark` in particular is Chrome repainting a light page by
+algorithm, which is not the dark theme your users see.
+
+For a true 320px reflow run, the CLI takes the width directly, which is more
+reliable than resizing a window:
+
+```bash
+--screenEmulation.mobile --screenEmulation.width=320 \
+  --screenEmulation.height=800 --screenEmulation.deviceScaleFactor=2
+```
+
+Confirm it landed rather than assuming - the report records what was used:
+
+```python
+json.load(open("report.json"))["configSettings"]["screenEmulation"]["width"]   # 320, not 412
+```
+
+**Keep the MCP for the matrix when you have it.** The CLI cannot run script in
+the page, so while it can prove the viewport it used, it cannot prove which
+theme it actually painted - there you are trusting a flag. With `emulate` plus the contrast sweep you read `matchMedia` back in the
+`scheme` field and catch an emulation call that silently did not take. Use the
+CLI for CI, for viewport precision, and when there is no MCP; use the MCP when
+you need the run to prove what it tested.
+
 Gotchas that cost real time:
 
 - **A run reporting 0 across every category, with 0 passed *and* 0 failed, is a failed run, not a score.** Nothing was measured. Check `runtimeError` in the JSON and retry before you conclude anything. Live sites behind a WAF or CDN throw this: a real audit of a production WordPress site returned `ERRORED_DOCUMENT_REQUEST` with a 403 on the first attempt and scored 96 on an immediate retry, with no change to anything. The distinction matters because a genuine 0 and a failed run look identical in the summary, and only one of them is worth reporting.
@@ -97,6 +161,8 @@ Run the **contrast sweep** from `references/scripts.md` via `evaluate_script`, o
 
 Trust it over Lighthouse's contrast audit. It reports exact ratios, which is what you need to pick a replacement color.
 
+**It also composites `opacity`, which is the one thing a naive sweep cannot see.** `opacity` fades the painted text toward its background and leaves `getComputedStyle(el).color` completely unchanged, so a sweep that reads the computed colour reports a clean pass on text that fails. Measured on a page already scoring 100 in both themes: an `opacity: .82` label put three light-theme cases under 4.5:1, worst 3.78, with the sweep still reporting zero failures. Check the `alpha` field on any finding - below 1 means the fade is part of the cause. This applies to your own fixes too: dimming a newly added label is the easiest way to introduce a failure while the tooling insists nothing changed.
+
 **If you are also authoring the page, check the palette before building.** Contrast is far cheaper to fix in six token values than in 41 rendered elements. Run the **token pre-check** from `references/scripts.md` against your palette, in both themes, before writing components. Test each foreground against the *darkest* light surface and the *lightest* dark surface - those are the worst cases, and a token that clears white may still fail on a tinted panel.
 
 ## Step 4 - Run what Lighthouse does not
@@ -109,7 +175,16 @@ These are real WCAG failures with no Lighthouse audit behind them. Run the **str
   The trap is not the empty cell, it is the **full** one. `+$1,000` and `+$130` are both complete, specific, correctly formatted values, and on a real page the first was good news and the second was bad, distinguishable only by being green or red. Asking "what does a colorblind user lose here" answers "nothing, the numbers are right there" and you move on. **Ask instead whether the text alone reveals which direction is better.** A signed number, a bare percentage, a date, a name: none of them carry polarity.
 - **Two colors encoding opposite states.** Run the **status-pair luminance check** from `references/scripts.md`. Contrast tools compare each color to its background; both can pass and still be the same brightness as each other, leaving hue as the only difference. Greyscale and color vision deficiency both erase hue.
 - **Focus visibility.** Tab through interactively. Anything focusable needs a visible `:focus-visible` state, including containers you just gave `tabindex="0"`.
-- **Reflow.** At 320px wide, the page body must not scroll sideways. Wide content scrolls inside its own container.
+- **Reflow.** At 320px wide, the page body must not scroll sideways. Wide content scrolls inside its own container. **Use `emulate` to get to 320px, not `resize_page`** - `resize_page` sets the browser window, which has a floor around 500px on macOS and silently gives you a 500px viewport while reporting success. Ask the page what it actually got:
+
+  ```js
+  emulate({ viewport: "320x800x2,mobile,touch" })
+  // then confirm, before trusting anything measured at this size
+  evaluate_script(() => ({ width: innerWidth,
+    sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth }))
+  ```
+
+  A run that believes it tested 320 and actually tested 500 will pass a page that breaks on a real phone.
 
 ## Step 5 - Report
 
@@ -133,6 +208,10 @@ State the before and after numbers per theme. If a number did not move, say so r
 |---|---|
 | "Lighthouse says 95, we're good" | In which theme? Run the matrix. |
 | "The contrast audit passed" | It only checked the rendered theme, and it samples. Sweep it. |
+| "The sweep reported zero failures" | Does it composite `opacity`? A faded label fails while computed colour looks fine. |
+| "I resized the window to 320px" | `resize_page` floors near 500 on macOS. Use `emulate` and read back `innerWidth`. |
+| "I ran `npx lighthouse` and it scored 95" | That was the **dark** theme. The CLI defaults to it. Pass `preferredColorScheme` both ways. |
+| "The polarity count didn't move, so the probe is broken" | Or your label has no leading space and really is one word. Read an element's `textContent`. |
 | "I'll audit the artifact URL" | That audits claude.ai's wrapper. Serve it locally. |
 | "No tables or forms, so semantics are fine" | Scroll containers and heading order still fail silently. |
 | "It's a static page, keyboard access is moot" | Scrollable regions are interactive whether you intended it or not. |
