@@ -194,7 +194,17 @@ print("\nNOT APPLICABLE (nothing on the page to test - not a pass):")
 print(", ".join(na))
 ```
 
-The glob path is macOS. On Linux the reports land under `/tmp`.
+The glob path is macOS, and it is only needed because `lighthouse_audit` writes to a temp directory it picks itself. On Linux those land under `/tmp`.
+
+Running the CLI instead, you name the path, so skip the glob entirely:
+
+```python
+r = json.load(open("./report.json"))       # --output-path=./report.json
+```
+
+Either way the rest of the script is identical - the JSON shape is the same from
+both. Run it once per theme and diff the failure lists, not the scores: two
+themes can land on the same number with completely different failures behind it.
 
 Read the "not applicable" list. It is the honest answer to "what did this audit not check", and it is where the false confidence lives.
 
