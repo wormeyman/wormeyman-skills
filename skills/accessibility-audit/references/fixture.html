@@ -25,9 +25,17 @@
    8. a             - outline:none with no replacement focus style
    9. img           - no alt attribute
   10. .status       - state conveyed by color alone, no text cue
+  11. .fade-fail    - contrast fails in BOTH themes, but only once opacity is
+                      composited. The token is properly themed and passes at
+                      full strength either way.
 
   Defects 1 and 2 are the point of the whole exercise: a single-theme audit
   finds one and reports the page clean of the other.
+
+  Defect 11 is the point of a second one. A sweep that reads
+  getComputedStyle(el).color cannot see it, because opacity never changes the
+  computed value - it changes what gets painted. A sweep that catches 1 and 2
+  but reports this page clean of 11 is measuring the wrong thing.
 -->
 
 <style>
@@ -43,6 +51,9 @@
     /* DEFECT 2: dark slate never redefined for light. Fine on a light ground,
        nearly invisible on a dark one. */
     --deep:#3A4A52;
+    /* DEFECT 11: this one IS redefined per theme and clears 4.5:1 on both
+       grounds at full strength - 8.42:1 here. The fade below is the defect. */
+    --faded:#3D4A52;
   }
   @media (prefers-color-scheme:dark){
     :root{
@@ -51,6 +62,7 @@
       --ink:#E7EDEF;
       --accent:#74BAC5;
       --bad:#DD8B80;
+      --faded:#C3CDD2;          /* 11.56:1 on the dark ground, full strength */
       /* --muted and --deep deliberately NOT redefined */
     }
   }
@@ -71,6 +83,10 @@
 
   .light-fail{color:var(--muted)}
   .dark-fail{color:var(--deep)}
+
+  /* DEFECT 11: composited this paints at 2.45:1 light and 3.71:1 dark.
+     getComputedStyle still reports #3D4A52 / #C3CDD2, which both pass. */
+  .fade-fail{color:var(--faded);opacity:.5}
 
   /* DEFECT 8: focus ring removed, nothing put back */
   a{color:var(--accent)}
@@ -94,8 +110,9 @@
 
   <h1>Accessibility audit fixture</h1>
 
-  <p>This page is deliberately broken. Ten defects are planted in it, listed in the
-  source comment. Two of them are visible in only one colour theme.</p>
+  <p>This page is deliberately broken. Eleven defects are planted in it, listed in the
+  source comment. Two of them are visible in only one colour theme, and one is
+  invisible to any tool that reads computed colour instead of painted colour.</p>
 
   <p class="light-fail">This sentence uses a token that was never redefined for dark
   mode. It is legible on a dark background and much too pale on a light one, so a
@@ -103,6 +120,11 @@
 
   <p class="dark-fail">This sentence has the opposite problem. It is legible on a light
   background and nearly invisible on a dark one, so a light-only audit reports it clean.</p>
+
+  <p class="fade-fail">This sentence uses a token that is correctly redefined for both
+  themes and clears 4.5:1 on either ground at full strength. It is faded to half opacity,
+  which drops it to 2.45:1 on light and 3.71:1 on dark. A sweep that reads the computed
+  colour sees a passing token and reports nothing.</p>
 
   <h3>Heading level skipped</h3>
 

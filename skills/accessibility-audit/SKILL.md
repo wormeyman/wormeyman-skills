@@ -33,8 +33,8 @@ Worse, the score does not have to move at all. `references/fixture.html` scores 
 
 | | Elements Lighthouse flags |
 |---|---|
-| Dark | `p.dark-fail`, `span.status.good` |
-| Light | `p.light-fail`, and four `<th>` |
+| Dark | `p.dark-fail`, `p.fade-fail`, `span.status.good` |
+| Light | `p.light-fail`, `p.fade-fail`, and four `<th>` |
 
 Fix everything the dark run reports and the page still has five contrast failures in light, still scoring 62. **A stable score across themes is not evidence the themes are equally sound.** Always run the matrix in Step 2.
 
@@ -161,7 +161,9 @@ Run the **contrast sweep** from `references/scripts.md` via `evaluate_script`, o
 
 Trust it over Lighthouse's contrast audit. It reports exact ratios, which is what you need to pick a replacement color.
 
-**It also composites `opacity`, which is the one thing a naive sweep cannot see.** `opacity` fades the painted text toward its background and leaves `getComputedStyle(el).color` completely unchanged, so a sweep that reads the computed colour reports a clean pass on text that fails. Measured on a page already scoring 100 in both themes: an `opacity: .82` label put three light-theme cases under 4.5:1, worst 3.78, with the sweep still reporting zero failures. Check the `alpha` field on any finding - below 1 means the fade is part of the cause. This applies to your own fixes too: dimming a newly added label is the easiest way to introduce a failure while the tooling insists nothing changed.
+**It also composites `opacity`.** `opacity` fades the painted text toward its background and leaves `getComputedStyle(el).color` completely unchanged, so a sweep that reads the computed colour reports a clean pass on text that fails. Measured on a page already scoring 100 in both themes: an `opacity: .82` label put three light-theme cases under 4.5:1, worst 3.78, with the sweep still reporting zero failures. Check the `alpha` field on any finding - below 1 means the fade is part of the cause. This applies to your own fixes too: dimming a newly added label is the easiest way to introduce a failure while the tooling insists nothing changed.
+
+Worth being straight about: **axe composites `opacity` correctly, so Lighthouse was ahead of this sweep on that one point** until it was fixed. The sweep still earns its place - it reports exact ratios rather than a bare pass or fail, it walks every element rather than sampling, and it runs in whichever theme you point it at. But "trust the sweep over Lighthouse" is a claim about coverage, not about the sweep being better at everything. When the two disagree, find out which is right before believing either.
 
 **If you are also authoring the page, check the palette before building.** Contrast is far cheaper to fix in six token values than in 41 rendered elements. Run the **token pre-check** from `references/scripts.md` against your palette, in both themes, before writing components. Test each foreground against the *darkest* light surface and the *lightest* dark surface - those are the worst cases, and a token that clears white may still fail on a tinted panel.
 
@@ -222,9 +224,9 @@ State the before and after numbers per theme. If a number did not move, say so r
 
 ## Verifying this skill still works
 
-`references/fixture.html` has ten planted defects and a manifest in its source comment. Serve it and run the full workflow against it.
+`references/fixture.html` has eleven planted defects and a manifest in its source comment. Serve it and run the full workflow against it.
 
-Expected result. Eight are caught by script:
+Expected result. Ten of the eleven are caught by script:
 
 | Found in | Defect |
 |---|---|
@@ -233,9 +235,12 @@ Expected result. Eight are caught by script:
 | Both runs | no `<main>`, no `lang`, `H1 H3` heading skip, missing `alt` |
 | Both runs | scroll region with no tab stop and no label |
 | Both runs | table with no caption and four `th` with no scope |
+| Both runs | `.fade-fail` at 2.45:1 light and 3.71:1 dark - **only if the sweep composites `opacity`** |
 | Focus probe | link with `outline:none` and no replacement |
 
-The tenth - state carried by color alone in the status column - has no *definitive* check. The polarity probe surfaces it as a candidate (`span.status.good`, text "caught", which does not reveal whether being caught is good or bad), alongside two false positives from `.light-fail` and `.dark-fail`, whose class names describe the planted defect rather than a UI state. **Three candidates, one real.** That ratio is the point: the probe generates leads, you decide. If a run reports the fixture clean on defect 10 without looking at the candidates, that is the failure the manual pass in Step 4 exists to prevent.
+Defect 11 is the one that catches a stale sweep. Its token is redefined for both themes and clears 4.5:1 on either ground at full strength, so `getComputedStyle` reports a passing colour in both runs. Only compositing the `opacity` reveals it. **A run that finds defects 1 and 2 but reports the page clean of 11 is using the old sweep**, which is precisely the regression this fixture now exists to catch.
+
+Defect 10 - state carried by color alone in the status column - has no *definitive* check. The polarity probe surfaces it as a candidate (`span.status.good`, text "caught", which does not reveal whether being caught is good or bad), alongside two false positives from `.light-fail` and `.dark-fail`, whose class names describe the planted defect rather than a UI state. **Three candidates, one real.** That ratio is the point: the probe generates leads, you decide. If a run reports the fixture clean on defect 10 without looking at the candidates, that is the failure the manual pass in Step 4 exists to prevent.
 
 If a script-detectable defect is missed, the skill has regressed. Fix the skill, not the fixture.
 
