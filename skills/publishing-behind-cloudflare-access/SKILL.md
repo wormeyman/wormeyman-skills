@@ -114,6 +114,7 @@ scope list.
 | **`allowed_idps: []` read back from the API looks like "no logins allowed"** | It means the opposite: unrestricted, so every configured provider is offered. The per-Worker dashboard flow leaves it empty, and an app created another way may have OTP pinned - so two apps on one account can differ here and both be right. Compare the rendered login pages before changing anything; with OTP configured they came back identical. Do not "fix" the empty one. |
 | Reading a config back is not the same as testing it | Policies are the gate, not the app record. An application can exist, be bound to the right Worker, and admit nobody, because the policies live on a separate endpoint (`/access/apps/{id}/policies`). Fetch those too. |
 | Blocked users still see "a code has been emailed to you" | By design. Judge by whether the code works, never by the message. |
+| **An account member testing the page gets no PIN, and reads that as a failure** | If the tester's address is a Cloudflare account member and a policy admits account members, Access signs them in through the Cloudflare IdP with no email at all. Measured: `connection: "cloudflare", allowed: true`, no PIN sent. It is correct behaviour that looks exactly like being blocked, because you sit waiting for a mail that was never coming. It also tests the wrong path - **recipients are not account members, so they all arrive by one-time PIN.** Test with an address that matches a policy but is *not* an account member. |
 | Removing someone from the policy leaves their session alive | Sessions last `session_duration` (24h default). Use Revoke tokens for immediate cutoff. |
 | Artifact HTML has no `<!doctype>`, `<html>`, `<head>`, or `<body>` | The artifact publisher injects them. Self-hosting does not. Wrap it, and add `<html lang="en">` plus `<meta name="robots" content="noindex, nofollow, noarchive">`. |
 | Email scanners consume the PIN before the user does | Symptom is "This One-Time PIN has already been used". Allowlist `noreply@notify.cloudflare.com`. |
@@ -142,6 +143,18 @@ the only ones that test the policy rather than the plumbing. Check 1 passes
 identically whether the policy admits the right five people or the wrong five
 hundred. If you are an agent, hand these two back explicitly rather than
 reporting the page verified.
+
+**Read the result in the log, not in the inbox.** "No code arrived" has three
+causes that are indistinguishable from a browser and obvious from
+`Zero Trust > Logs > Access authentication`, or
+`GET /accounts/{account_id}/access/logs/access_requests`, which is a read and so
+works on a read-only token:
+
+| `connection` | Means |
+|---|---|
+| `cloudflare` | Signed in via the Cloudflare IdP. **No PIN was ever sent.** |
+| `onetimepin` | The PIN path worked, which is what recipients will use. |
+| *no entry at all* | No successful login. This is what a correctly refused address looks like - note it is not an explicit deny, because a refused address never gets far enough to produce one. |
 
 ## When not to use this
 
