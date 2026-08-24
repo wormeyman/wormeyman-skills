@@ -8,7 +8,7 @@ All of these were written against a real audit and returned correct results on a
 
 ## 1. Contrast sweep
 
-Run once per theme. Walks every text-bearing element, resolves the real effective background by climbing ancestors until it finds a non-transparent one, and applies the correct WCAG threshold for that element's computed size and weight.
+Run once per theme. Walks every text-bearing element, resolves the real effective background by climbing ancestors until it finds a non-transparent one, composites the text colour through any `opacity` and `rgba()` alpha in its way, and applies the correct WCAG threshold for that element's computed size and weight.
 
 Use this instead of trusting Lighthouse's contrast audit. It reports exact ratios, which is what you need in order to pick a replacement color.
 
@@ -18,12 +18,20 @@ Use this instead of trusting Lighthouse's contrast audit. It reports exact ratio
   const lum = ([r,g,b]) => 0.2126*srgb(r)+0.7152*srgb(g)+0.0722*srgb(b);
   const parse = s => (s.match(/[\d.]+/g)||[]).map(Number);
   const cr = (a,b) => { const la=lum(a),lb=lum(b),hi=Math.max(la,lb),lo=Math.min(la,lb); return (hi+0.05)/(lo+0.05); };
+  const mix = (f,b,a) => f.map((c,i)=>a*c+(1-a)*b[i]);
   const bgOf = el => { let n=el;
     while (n && n!==document.documentElement) {
       const c=parse(getComputedStyle(n).backgroundColor);
       if (c.length>=3 && (c.length===3 || c[3]>0)) return c.slice(0,3);
       n=n.parentElement; }
     return [255,255,255]; };
+  // opacity multiplies down the tree and never appears in computed colour
+  const fadeOf = el => { let a=1,n=el;
+    while (n && n!==document.documentElement) {
+      const o=parseFloat(getComputedStyle(n).opacity);
+      if (!isNaN(o)) a*=o;
+      n=n.parentElement; }
+    return a; };
   const out=[];
   document.querySelectorAll('*').forEach(el=>{
     const hasText=[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim().length);
@@ -32,11 +40,14 @@ Use this instead of trusting Lighthouse's contrast audit. It reports exact ratio
     if(cs.visibility==='hidden'||cs.display==='none') return;
     const px=parseFloat(cs.fontSize), w=parseInt(cs.fontWeight)||400;
     const need=(px>=24||(px>=18.66&&w>=700))?3:4.5;
-    const ratio=cr(parse(cs.color).slice(0,3), bgOf(el));
+    const bg=bgOf(el);
+    const raw=parse(cs.color);
+    const alpha=(raw.length===4?raw[3]:1)*fadeOf(el);
+    const ratio=cr(mix(raw.slice(0,3), bg, alpha), bg);
     if(ratio<need) out.push({
       sel: el.tagName.toLowerCase()+(typeof el.className==='string'&&el.className?'.'+el.className.trim().split(/\s+/).join('.'):''),
       text: el.textContent.trim().slice(0,40),
-      px, weight:w, ratio:+ratio.toFixed(2), need
+      px, weight:w, alpha:+alpha.toFixed(2), ratio:+ratio.toFixed(2), need
     });
   });
   const agg={};
@@ -51,6 +62,21 @@ Use this instead of trusting Lighthouse's contrast audit. It reports exact ratio
 ```
 
 `scheme` and `bodyBg` are in the output on purpose. Check them. If `scheme` is not the theme you meant to test, your `emulate` call did not take effect and the run is worthless. A `bodyBg` of `rgba(0, 0, 0, 0)` means the page never painted its own background and is borrowing the host's - a bug in its own right.
+
+`alpha` is in the output for the same reason. **An earlier version of this sweep read `getComputedStyle(el).color` and stopped there, which meant it could not see `opacity` at all.** `opacity` composites the painted text toward whatever is behind it and leaves the computed colour untouched, so faded text sailed through as a clean pass.
+
+Measured, on a page this skill had just scored 100 in both themes: adding `opacity: .82` to a label pushed three light-theme cases under 4.5:1, worst **3.78**, while the sweep kept reporting `totalFailingElements: 0`. The failure was found by hand, not by the script that exists to find it.
+
+Any `alpha` below 1 in a finding means the fade is at least part of the cause, and the cheapest fix is usually to delete the `opacity` and pick a dimmer token instead. Note the value multiplies down the tree: a `.6` label inside a `.8` panel paints at `.48`.
+
+Both versions were run against a page carrying three planted fade defects and one full-strength control:
+
+| | Reported |
+|---|---|
+| Old sweep | **0 failures** |
+| This sweep | **3** - `opacity:.82` at 3.78:1, nested `.8 x .6 = .48` at 2.03:1, `rgba(...,.55)` at 2.29:1 |
+
+The control passed in both, so the difference is detection and not noise, and the 3.78 matches a hand calculation of the same case. Re-running this sweep on a real page that had already been fixed returned 0 in both themes, so it does not invent findings either.
 
 ---
 
@@ -215,8 +241,17 @@ with one hit each is mostly noise.
 **Test the visible text, not the direct text nodes.** An earlier version of this
 probe read only `nodeType === 3` children and so could not see a label nested in
 a child `<span>`. It scored a fixed page and a broken page identically at 81
-candidates. If your counts do not move after a fix, suspect the probe before the
-fix.
+candidates.
+
+**If your counts do not move after a fix, there are two suspects, and only one
+of them is the probe.** The other is a fix that did not actually land, and the
+most common version is a missing space. Appending `<span>worse</span>` straight
+after a number gives `textContent` of `+$3,100worse`, where `\bworse\b` cannot
+match because there is no word boundary between `0` and `w`. The probe is right
+to keep flagging it: that really is one word, to a screen reader as much as to
+the regex. On a real run the count went 36 to **37** and the fix looked inert.
+Adding the leading space took it to 4. Read one flagged element's `textContent`
+before concluding the probe is at fault.
 
 **Expect false positives, and do not tune them away.** Class names that describe
 a *defect* or a *heading* rather than a UI state will match: `.light-fail`,
