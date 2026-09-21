@@ -298,6 +298,41 @@ trigger.** A skill has to be invoked, and this behavior has to be automatic, so
 the rule itself lives in `CLAUDE.md` where it fires every time. Keeping both is
 the point. The rule remembers to ask; this file explains how to ask well.
 
+### [`sandboxed-execution`](skills/sandboxed-execution)
+
+Choose an OS-enforced sandbox for code you do not trust, then prove the sandbox
+holds before you run anything in it. Covers picking between a plain container and
+a full isolated VM, the fetch-then-cut pattern for code that has to download
+before it can run, and getting evidence back out without following a symlink.
+
+The point of the skill is the second half. Building a sandbox is easy and the
+commands are in every tutorial. What goes wrong is that nobody checks it, or the
+check is broken in a way that reads as success.
+
+Two examples from the session that produced this, both of which I believed at
+first. A "loopback still works" control ran when nothing was listening, so it
+reported the port closed and proved nothing at all. And an HTTP probe dialled
+`127.0.0.1` against a server bound to `::1`, got `ECONNREFUSED` for every case,
+and looked exactly like a sandbox denying everything. Neither probe could have
+failed in a way I would have noticed.
+
+So every check in `scripts/verify-sandbox.py` is a pair: the unsafe thing must be
+refused *and* a safe thing must still work. If only one half holds, it reports
+`INCONCLUSIVE` rather than passing, because "I could not tell" is a real answer
+and treating it as a pass is how you end up trusting a result.
+
+The script found a bug in itself on its first run. Its memory probe piped into
+`tail -c 1`, which streams and holds a single byte, so it allocated nothing and
+reported a working 256 MB cap as broken. Fixed, it now buffers the full amount
+and gets exit 137.
+
+One measured fact worth the whole file: OrbStack's `--isolate-network` does not
+mean "no network". It blocks other machines and host IPs while keeping internet
+access, and a machine created with it could still reach another box on my
+tailnet. The flag name invites exactly the wrong reading. Running the script
+against a fresh isolated machine reports `no external network: BROKEN`, which is
+how I would rather find that out.
+
 ## Install
 
 Copy a skill into your skills directory:
