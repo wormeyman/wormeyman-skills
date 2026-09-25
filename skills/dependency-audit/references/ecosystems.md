@@ -122,8 +122,9 @@ gh api repos/<owner>/<repo>/releases/latest --jq .tag_name
 
 Check for:
 
-- Actions on a **deprecated Node runtime**. Anything still on node16 will start
-  warning and then failing.
+- Actions on a **deprecated Node runtime**. Read each action's `runs.using` and
+  compare it with the runtimes GitHub supports today. Look this up rather than
+  trusting a remembered version.
 - **Deprecated runner images** in `runs-on`.
 - **Moving tag vs pinned SHA.** Neither is wrong - a SHA is supply-chain safer,
   a tag gets fixes automatically. Report which the repo uses consistently and
