@@ -4,6 +4,10 @@ Verification commands and known constraints for repos this skill is used on.
 Read the relevant section before proposing changes - each entry records traps
 that cost someone real time to find.
 
+Commands and CI facts here were last checked on the date in each section
+heading. Each repo's own CLAUDE.md or AGENTS.md is the current source for gate
+commands. Read it first, and trust it over this file when they disagree.
+
 All three repos below share one property that dominates everything else:
 **they encode facts about a shipped video game that were established by
 measurement, not by reasoning.** Code that looks naive is often a transcription,
@@ -12,48 +16,56 @@ Where a comment cites a version, a commit SHA, or a probe, treat it as binding.
 
 ---
 
-## factorio-blueprint-editor
+## factorio-blueprint-editor (checked 2026-09-25)
 
 `~/GitHub/factorio-blueprint-editor` - TypeScript monorepo
 (npm workspaces) + a Rust exporter. ~24.7k source lines.
 
-### This is a live fork - the single most important constraint
+### This was a live fork. It is not one any more
 
-```
-origin    wormeyman/factorio-blueprint-editor
-upstream  teoxoy/factorio-blueprint-editor
-```
+When this file was first written, the repo was a GitHub fork of
+`teoxoy/factorio-blueprint-editor`, 399 commits ahead, with a stated plan to
+send work back upstream. That was the constraint behind every structural
+decision here. It no longer holds. Upstream's newest commit is `62d8b92d mark
+project as unmaintained` (2026-08-16). The repo then moved to its own owner, and
+GitHub no longer lists it as a fork. The checkout has no `upstream` remote.
 
-Default branch is `wormeyman-space-age-support`, **399 commits ahead of
-`upstream/master`, 0 behind**, upstream fetched recently, and CLAUDE.md states
-the intent to send work back upstream.
+So "renaming inherited files makes future merges painful" is no longer a cost,
+because there are no future merges. What is left is weaker: the
+`packages/editor` / `exporter` / `website` split, the `src/core/`
+`src/containers/` `src/UI/` shape, and inherited filenames
+(`spriteDataBuilder.ts`, `Entity.ts`, `Blueprint.ts`, `bpString.ts`) are what
+the project's docs, specs and issue history describe. A large rename is a
+documentation cost, not a merge cost. That is a reason not to do it casually,
+but not a reason it cannot be done.
 
-**Consequence:** the `packages/editor` / `exporter` / `website` split, the
-`src/core/` `src/containers/` `src/UI/` shape, and inherited filenames
-(`spriteDataBuilder.ts`, `Entity.ts`, `Blueprint.ts`, `bpString.ts`) all come
-from upstream. Renaming, moving or collapsing them turns every future merge into
-conflict resolution and makes the fork's diff unreadable to upstream.
-
-Refactor freely in fork-only code: `packages/worker`, `tests/`, `tools/oracle`.
-Be conservative in everything inherited.
+The MIT notice keeps teoxoy's copyright line and the README keeps crediting
+him. That is attribution and stays either way.
 
 ### Verification
 
 ```bash
 vp check .                  # oxfmt + oxlint + tsc across packages; must be 0
 vp test                     # vitest: editor unit tests + scripts/ gate tests
-npm run type-check:gate     # ratchet against scripts/type-check-baseline.json (0)
 ```
 
-**CI does not prove this repo consistent, and that is the trap.** The 159
-Playwright specs - where essentially all placement, paste, rendering, UI and
-round-trip coverage lives - are **not in CI**. Only 7 unit test files (~110
-`it()`s) run unattended. To actually verify a refactor:
+**CI runs the Playwright suite now.** Older versions of this file said it did
+not, and called that the trap. The `e2e` job in `.github/workflows/ci.yml` runs
+it in four shards on PRs and pushes to `wormeyman-space-age-support`, and
+`deploy` waits on both `checks` and `e2e`. Both jobs are gated on the `changes`
+job's `web` output, which is on for any change outside `packages/exporter/`, or
+inside its generated `data/output/`. A change that touches only the exporter
+skips both, so its green run proves only the Rust job. Running the suite
+locally is still faster feedback:
 
 ```bash
 npm run localpreview        # terminal 1: Vite :8080 + sprite data :8081
 npx playwright test         # terminal 2
 ```
+
+Do not edit anything under `packages/` while a run is in flight. Vite
+hot-reloads the page under the running spec, which then dies with "Execution
+context was destroyed" in a spec unrelated to what you edited.
 
 No coverage collection, no thresholds, no mutation tooling anywhere.
 
@@ -114,7 +126,7 @@ with measured exceptions - do not generalize its rules; ask the oracle.
 
 ---
 
-## FactorioTools
+## FactorioTools (checked 2026-09-23)
 
 `~/GitHub/FactorioTools` - polyglot: ~13.7k C# source, a Vue 3
 SPA (~1.8k `.vue` + ~1.6k hand-written TS), and 22.9k lines of **generated**
@@ -134,7 +146,10 @@ not come back:
 
 **This is the highest-risk trap in the repo**, because the single most likely
 "cleanup" an agent proposes for imperative C# is exactly to rewrite it with
-LINQ. It will compile, pass review, and break the Lua build.
+LINQ. It will compile, transpile, and parse cleanly, then fail at runtime inside
+Factorio, because `Collections.Linq` is not in the CoreSystem load list. Only a
+check that runs the planner catches it: the `transpile-lua` CI job or
+`tools/check-lua.sh`.
 
 Two more from the same constraint:
 - **The core library must stay serialization-free** - `src/FactorioTools` has no
@@ -162,8 +177,8 @@ dotnet build -c Debug /p:UseHashSets=false      # ...and UseBitArray, LocationAs
 # TS/Vue, from src/vue (build includes swagger-gen + vue-tsc typecheck)
 npm install && npm run build && npm run test
 
-# Lua - syntax only, NOT in CI (fish)
-for f in src/lua/**/*.lua; luac5.2 -p $f; end
+# Lua - same as the transpile-lua CI job: luac 5.2.4 syntax check plus a run of sample.lua, in Docker
+tools/check-lua.sh
 ```
 
 Prereqs: `dotnet workload restore` (wasm-tools) and
@@ -188,8 +203,9 @@ make a refactor pass.
   57 blueprints. `small-list.txt` / `big-list.txt` are normalized only via
   `dotnet run --project src/FactorioTools.Cli -- oil-field normalize`.
 - `.github/renovate.json5` comments are "load-bearing, not decoration". The
-  `Verify.DiffPlex` 3.1.2 pin carries a 25-line rationale - bumping fails 2,748
-  of 4,261 tests at runtime.
+  Verify family (`Verify`, `Verify.XunitV3`, `Verify.DiffPlex`) must move
+  together in one PR. Bumping one alone builds cleanly and then fails most of
+  the suite at runtime with `MethodAccessException`.
 
 ### Ports pinned to upstream commit SHAs
 
@@ -230,7 +246,8 @@ should go through the existing swagger/codegen seam rather than a new one.
 - **Zero Vue component tests.** 1,805 lines of `.vue` have no automated
   coverage and are not even in the vitest `include` glob. Refactoring there is
   unguarded - write characterization tests first.
-- Lua has no test runner at all; the syntax check above is the only gate.
+- Lua's gate is `tools/check-lua.sh`. The syntax check alone misses LINQ; the
+  `sample.lua` run is the part that catches it.
 - Style: hyphens, not em/en dashes.
 
 ---
@@ -241,7 +258,7 @@ should go through the existing swagger/codegen seam rather than a new one.
 lines, ~39.8k test lines (2.2:1), 197 spec files. The strongest safety net of
 the three.
 
-**Gate:** `pnpm run verify` (~65-90s). Never `pnpm vp check --fix` in a deploy
+**Gate:** `pnpm run verify` (about 3.5 minutes on a dev machine as of 2026-09-05; the repo CLAUDE.md has the current breakdown). Never `pnpm vp check --fix` in a deploy
 path - a deploy must not rewrite files on its way out.
 
 **Byte-exactness is a hard invariant.** `src/codec/mapExchangeString.ts` must
