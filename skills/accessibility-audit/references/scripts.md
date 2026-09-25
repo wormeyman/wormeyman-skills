@@ -10,7 +10,7 @@ All of these were written against a real audit and returned correct results on a
 
 Run once per theme. Walks every text-bearing element, resolves the real effective background by climbing ancestors until it finds a non-transparent one, composites the text colour through any `opacity` and `rgba()` alpha in its way, and applies the correct WCAG threshold for that element's computed size and weight.
 
-Use this instead of trusting Lighthouse's contrast audit. It reports exact ratios, which is what you need in order to pick a replacement color.
+Use this alongside Lighthouse's contrast audit. It reports exact ratios, which is what you need in order to pick a replacement color.
 
 ```js
 () => {
@@ -63,9 +63,9 @@ Use this instead of trusting Lighthouse's contrast audit. It reports exact ratio
 
 `scheme` and `bodyBg` are in the output on purpose. Check them. If `scheme` is not the theme you meant to test, your `emulate` call did not take effect and the run is worthless. A `bodyBg` of `rgba(0, 0, 0, 0)` means the page never painted its own background and is borrowing the host's - a bug in its own right.
 
-`alpha` is in the output for the same reason. **An earlier version of this sweep read `getComputedStyle(el).color` and stopped there, which meant it could not see `opacity` at all.** `opacity` composites the painted text toward whatever is behind it and leaves the computed colour untouched, so faded text sailed through as a clean pass.
+`alpha` is in the output for the same reason. **Reading only `getComputedStyle(el).color` cannot see `opacity` at all.** `opacity` composites the painted text toward whatever is behind it and leaves the computed colour untouched, so faded text sailed through as a clean pass.
 
-Measured, on a page this skill had just scored 100 in both themes: adding `opacity: .82` to a label pushed three light-theme cases under 4.5:1, worst **3.78**, while the sweep kept reporting `totalFailingElements: 0`. The failure was found by hand, not by the script that exists to find it.
+Measured on a page that scored 100 in both themes: adding `opacity: .82` to a label pushed three light-theme cases under 4.5:1, worst **3.78**, while a sweep that skipped `opacity` still reported `totalFailingElements: 0`.
 
 Any `alpha` below 1 in a finding means the fade is at least part of the cause, and the cheapest fix is usually to delete the `opacity` and pick a dimmer token instead. Note the value multiplies down the tree: a `.6` label inside a `.8` panel paints at `.48`.
 
@@ -248,13 +248,12 @@ This is a lead generator, not a verdict. Read every candidate.
 component that never labels its direction, which is one fix. Fifty selectors
 with one hit each is mostly noise.
 
-**Test the visible text, not the direct text nodes.** An earlier version of this
-probe read only `nodeType === 3` children and so could not see a label nested in
-a child `<span>`. It scored a fixed page and a broken page identically at 81
-candidates.
+**Test the visible text, not the direct text nodes.** A probe that reads only
+`nodeType === 3` children cannot see a label nested in a child `<span>`, and it
+scores a fixed page and a broken page the same (81 candidates each, measured).
 
-**If your counts do not move after a fix, there are two suspects, and only one
-of them is the probe.** The other is a fix that did not actually land, and the
+**If your counts do not move after a fix, there are three suspects, and only one
+of them is the probe.** The second is a fix that did not actually land, and the
 most common version is a missing space. Appending `<span>worse</span>` straight
 after a number gives `textContent` of `+$3,100worse`, where `\bworse\b` cannot
 match because there is no word boundary between `0` and `w`. The probe is right
@@ -262,6 +261,45 @@ to keep flagging it: that really is one word, to a screen reader as much as to
 the regex. On a real run the count went 36 to **37** and the fix looked inert.
 Adding the leading space took it to 4. Read one flagged element's `textContent`
 before concluding the probe is at fault.
+
+**The third is a component whose label is a sibling, not a child.** A stat tile
+is the usual shape:
+
+```html
+<div class="stat">
+  <span class="fig is-alert">$0.00<span class="arrow">&rarr;</span><span class="to">$6.30</span></span>
+  <span class="lab">Basic Rx's premium, up from zero</span>
+</div>
+```
+
+The probe flags `span.fig.is-alert`, whose own `textContent` is `$0.00→$6.30`
+and will never contain a direction word however well you write the caption. The
+count does not move because **the fix is correct and the probe is reading the
+wrong node** - the accessible reading context is the whole tile. Measured on a
+real page: the caption was rewritten from "cheapest of the three" to "up from
+zero, still cheapest", which is a genuine WCAG 1.4.1 fix, and the candidate
+count stayed at 5.
+
+So do not "fix" it by stuffing the word into the number span. Verify at the
+container instead, and check the container that a screen reader would read as
+one unit:
+
+```js
+() => {
+  const DIRECTION = /\b(worse|better|up|down|raised|cut|fewer|more|lost|gone|only|new)\b/i;
+  return [...document.querySelectorAll('.stat')].map(t => {
+    // join the children with spaces: minified HTML has none between the
+    // spans, and "$6.30up" has no word boundary before "up"
+    const reads = [...t.children].map(c => c.textContent).join(' ').replace(/\s+/g, ' ').trim();
+    return { reads: reads.slice(0, 90), alert: !!t.querySelector('.is-alert'),
+             directionInWords: DIRECTION.test(reads) };
+  }).filter(x => x.alert && !x.directionInWords);
+}
+```
+
+Swap `.stat` for whatever wraps one figure and its label. An empty result is the
+pass. On that page it correctly returned one tile before the fix and none after,
+while the element-level probe reported 5 both times.
 
 **Expect false positives, and do not tune them away.** Class names that describe
 a *defect* or a *heading* rather than a UI state will match: `.light-fail`,
