@@ -55,6 +55,14 @@ only for things that live *nowhere but this chat*.
 
 Use absolute paths so they're clickable and unambiguous in a fresh terminal.
 
+**Every pointer must outlive this session.** A session scratchpad, or anything
+under `/tmp` or `/private/tmp`, can be gone by the time the next session starts:
+the scratchpad belongs to this session, and a reboot clears `/tmp`. You can still
+reach those files now, and the next session may not. So before writing the
+prompt, copy anything it needs somewhere durable - into the repo (uncommitted is
+fine, if the prompt says so) or a folder under the home directory - or paste it
+inline if it is short. Then point at the new location.
+
 ## Prompt shape
 
 Adapt to the work, but this structure covers most cases. Write it as if the user
