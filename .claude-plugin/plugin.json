@@ -1,0 +1,10 @@
+{
+  "name": "wormeyman-skills",
+  "description": "Accessibility audits, dependency audits, refactoring, sandboxed execution, Cloudflare Access publishing, Cloudflare migration sweeps, decision prompts and session handoffs.",
+  "author": {
+    "name": "wormeyman",
+    "url": "https://github.com/wormeyman"
+  },
+  "repository": "https://github.com/wormeyman/wormeyman-skills",
+  "license": "MIT"
+}

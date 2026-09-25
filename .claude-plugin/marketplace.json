@@ -1,0 +1,15 @@
+{
+  "name": "wormeyman",
+  "owner": {
+    "name": "wormeyman",
+    "url": "https://github.com/wormeyman"
+  },
+  "description": "Agent skills built against real work, with the measurements behind each design.",
+  "plugins": [
+    {
+      "name": "wormeyman-skills",
+      "source": "./",
+      "description": "Accessibility audits, dependency audits, refactoring, sandboxed execution, Cloudflare Access publishing, Cloudflare migration sweeps, decision prompts and session handoffs."
+    }
+  ]
+}
