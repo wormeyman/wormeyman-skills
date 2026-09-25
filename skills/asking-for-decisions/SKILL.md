@@ -1,6 +1,6 @@
 ---
 name: asking-for-decisions
-description: Put a decision to the user as an AskUserQuestion prompt with grounded options, never as a prose question. Use when you are about to ask the user anything whose answer changes what you do next - which approach to take, merge or hold, fix now or defer, which target to pick. Use it especially when finishing a long report, because that is where the habit breaks. Covers what counts as a decision, how to write options worth choosing between, and the tool mechanics: option count, headers, multiSelect, previews, and when not to ask at all.
+description: Put a decision to the user as an AskUserQuestion prompt with grounded options, never as a prose question. Use when you are about to ask the user anything whose answer changes what you do next - which approach to take, merge or hold, fix now or defer, which target to pick. Use it especially when finishing a long report, because that is where the habit breaks. Covers what counts as a decision, how to write options worth choosing between, and the tool mechanics (option count, headers, multiSelect, previews, and when not to ask at all).
 ---
 
 # Asking for decisions
@@ -18,8 +18,6 @@ You have just finished something. You are writing it up. The prose is flowing. A
 > One thing I'd flag for later: the honest next test is pointing it at something you didn't build. One of the client sites would be a real trial.
 
 That is a decision. It changes what happens next. It went out as a closing paragraph.
-
-That example is real. It happened in the session that produced this skill, in a report about finishing a different skill, and the user had to ask for the prompt. Everything else in that session went into prompts correctly. The one that slipped was the one at the end of a long write-up, which is exactly where the rule says to watch.
 
 So the check is mechanical. Before you send a long message, read your last paragraph. Anything in it the user could act on belongs in a prompt instead.
 
@@ -79,7 +77,7 @@ Re-asking later is fine when something you learned actually changes the trade-of
 | Thought | Reality |
 |---|---|
 | "I'll just mention it at the end" | That is the failure mode. Put it in a prompt. |
-| "It's obvious what they'll pick" | Then lead with it, marked Recommended, and still ask. |
+| "I'm fairly sure what they'll pick" | Lead with it, marked Recommended, and still ask. Skip the prompt only for a default nobody would question. |
 | "A prompt feels heavy for this" | A prompt is one click. A prose question is a whole reply. |
 | "I'll ask this one now and the rest after" | Batch them. Up to four in one call. |
 | "I don't have numbers for the options yet" | Then you are not ready to ask. Go measure first. |
