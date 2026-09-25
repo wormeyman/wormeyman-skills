@@ -9,6 +9,61 @@ The [skill format](https://code.claude.com/docs/en/skills) is a directory with a
 `SKILL.md` carrying YAML frontmatter. It is read by Claude Code and by a growing
 number of other agent tools.
 
+| Skill | What it does |
+| --- | --- |
+| [`accessibility-audit`](skills/accessibility-audit) | Audits a page against WCAG 2.2 AA in light, dark and mobile, then fixes what it finds |
+| [`asking-for-decisions`](skills/asking-for-decisions) | Puts a decision to you as a prompt with real options, not as a question buried in prose |
+| [`cloudflare-migration-sweep`](skills/cloudflare-migration-sweep) | Finds every repo you can reach that still needs a Cloudflare migration or deprecation fix |
+| [`dependency-audit`](skills/dependency-audit) | Decides what to update, remove or replace, and whether a new major is worth it here |
+| [`publishing-behind-cloudflare-access`](skills/publishing-behind-cloudflare-access) | Puts a login in front of a static page, in an order that never leaves it public |
+| [`refactoring`](skills/refactoring) | Decides whether code is worth refactoring, from git history and the real test safety net |
+| [`sandboxed-execution`](skills/sandboxed-execution) | Picks a sandbox for code you do not trust, and proves it holds before running anything |
+| [`session-handoff`](skills/session-handoff) | Writes a self-contained prompt so a fresh session can pick up the work |
+
+The design notes under [Skills](#skills) explain why each one is built the way
+it is.
+
+## Install
+
+Pick one route. Installing the same skills two ways gives you every skill twice.
+
+**Any agent, with the [`skills` CLI](https://github.com/vercel-labs/skills)**, the
+installer behind [skills.sh](https://skills.sh):
+
+```sh
+npx skills add wormeyman/wormeyman-skills --list                  # see what is here
+npx skills add wormeyman/wormeyman-skills --skill refactoring     # one skill, this project
+npx skills add wormeyman/wormeyman-skills --skill '*' --global    # all of them, every project
+```
+
+Add `--agent claude-code` to install for one agent only. `npx skills update`
+pulls in later changes.
+
+**Claude Code, as a plugin:**
+
+```
+/plugin marketplace add wormeyman/wormeyman-skills
+/plugin install wormeyman-skills@wormeyman
+```
+
+This installs all eight. Plugin skills carry the plugin's name, so you invoke
+`/wormeyman-skills:refactoring`. Run `/plugin marketplace update wormeyman` for
+later changes, or turn on auto-update for the marketplace in `/plugin`.
+
+**By hand:**
+
+```sh
+git clone https://github.com/wormeyman/wormeyman-skills.git
+cp -R wormeyman-skills/skills/dependency-audit ~/.claude/skills/
+```
+
+Copy into `.claude/skills/` inside a repo instead to install for that project
+only.
+
+However you install, you can invoke a skill by name or just describe the task.
+The `description` field in each skill's frontmatter is what decides whether it
+triggers on its own.
+
 ## Skills
 
 ### [`dependency-audit`](skills/dependency-audit)
@@ -362,21 +417,6 @@ command, and a site whose only deploy instructions were in its docs.
 The catalog was built from every Cloudflare `llms.txt` index and the changelog
 on 2026-09-25, and it will go stale. The skill says so at the top and explains
 how to refresh it.
-
-## Install
-
-Copy a skill into your skills directory:
-
-```sh
-git clone https://github.com/wormeyman/wormeyman-skills.git
-cp -R wormeyman-skills/skills/dependency-audit ~/.claude/skills/
-```
-
-Per-project instead of globally: copy into `.claude/skills/` inside the repo.
-
-Invoke by name (`/dependency-audit`), or just describe the task - the
-`description` field in each skill's frontmatter is what decides whether it
-triggers on its own.
 
 ## A note on writing skills
 
