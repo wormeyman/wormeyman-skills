@@ -159,11 +159,11 @@ Lighthouse samples. It also cannot see a failure in the theme it did not render.
 
 Run the **contrast sweep** from `references/scripts.md` via `evaluate_script`, once per theme. It walks every text-bearing element, resolves the real effective background by climbing ancestors until it finds a non-transparent one, and applies the correct threshold for that element's computed size and weight (3:1 for large text, 4.5:1 otherwise).
 
-Trust it over Lighthouse's contrast audit. It reports exact ratios, which is what you need to pick a replacement color.
+It reports exact ratios, which is what you need to pick a replacement color.
 
 **It also composites `opacity`.** `opacity` fades the painted text toward its background and leaves `getComputedStyle(el).color` completely unchanged, so a sweep that reads the computed colour reports a clean pass on text that fails. Measured on a page already scoring 100 in both themes: an `opacity: .82` label put three light-theme cases under 4.5:1, worst 3.78, with the sweep still reporting zero failures. Check the `alpha` field on any finding - below 1 means the fade is part of the cause. This applies to your own fixes too: dimming a newly added label is the easiest way to introduce a failure while the tooling insists nothing changed.
 
-Worth being straight about: **axe composites `opacity` correctly, so Lighthouse was ahead of this sweep on that one point** until it was fixed. The sweep still earns its place - it reports exact ratios rather than a bare pass or fail, it walks every element rather than sampling, and it runs in whichever theme you point it at. But "trust the sweep over Lighthouse" is a claim about coverage, not about the sweep being better at everything. When the two disagree, find out which is right before believing either.
+Lighthouse's contrast audit (axe) also composites `opacity`, so neither tool is better at everything. The sweep adds exact ratios, every element instead of a sample, and whichever theme you point it at. When the two disagree, find out which is right before believing either.
 
 **If you are also authoring the page, check the palette before building.** Contrast is far cheaper to fix in six token values than in 41 rendered elements. Run the **token pre-check** from `references/scripts.md` against your palette, in both themes, before writing components. Test each foreground against the *darkest* light surface and the *lightest* dark surface - those are the worst cases, and a token that clears white may still fail on a tinted panel.
 
@@ -180,13 +180,19 @@ These are real WCAG failures with no Lighthouse audit behind them. Run the **str
 - **Reflow.** At 320px wide, the page body must not scroll sideways. Wide content scrolls inside its own container. **Use `emulate` to get to 320px, not `resize_page`** - `resize_page` sets the browser window, which has a floor around 500px on macOS and silently gives you a 500px viewport while reporting success. Ask the page what it actually got:
 
   ```js
-  emulate({ viewport: "320x800x2,mobile,touch" })
+  // set BOTH in one call - see below
+  emulate({ viewport: "320x800x2,mobile,touch", colorScheme: "light" })
   // then confirm, before trusting anything measured at this size
   evaluate_script(() => ({ width: innerWidth,
+    scheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth }))
   ```
 
   A run that believes it tested 320 and actually tested 500 will pass a page that breaks on a real phone.
+
+  **Each `emulate` call resets every setting it leaves out.** Measured: `emulate({colorScheme:"light"})`, then `emulate({viewport:"320x800x2,mobile,touch"})`, and the page read back `scheme: "dark"`. The reflow run had silently changed theme, so it was a dark 320px run wearing a light label. It works the other way too: a later call with only `colorScheme` puts the viewport back to the window's width. So pass every setting you need in each call, and read `width` and `scheme` back every time.
+
+  If `width` reads 980 instead of 320, the emulation worked and the page has no `<meta name="viewport">`. Phones will show it as a shrunken desktop page. That is a finding, not a failed run.
 
 ## Step 5 - Report
 
@@ -238,7 +244,7 @@ Expected result. Ten of the eleven are caught by script:
 | Both runs | `.fade-fail` at 2.45:1 light and 3.71:1 dark - **only if the sweep composites `opacity`** |
 | Focus probe | link with `outline:none` and no replacement |
 
-Defect 11 is the one that catches a stale sweep. Its token is redefined for both themes and clears 4.5:1 on either ground at full strength, so `getComputedStyle` reports a passing colour in both runs. Only compositing the `opacity` reveals it. **A run that finds defects 1 and 2 but reports the page clean of 11 is using the old sweep**, which is precisely the regression this fixture now exists to catch.
+Defect 11 catches a sweep that does not composite `opacity`. Its token is redefined for both themes and clears 4.5:1 on either ground at full strength, so `getComputedStyle` reports a passing colour in both runs. Only compositing the `opacity` reveals it. **A run that finds defects 1 and 2 but reports the page clean of 11 has a sweep that skips `opacity`**, which is the regression this defect exists to catch.
 
 Defect 10 - state carried by color alone in the status column - has no *definitive* check. The polarity probe surfaces it as a candidate (`span.status.good`, text "caught", which does not reveal whether being caught is good or bad), alongside two false positives from `.light-fail` and `.dark-fail`, whose class names describe the planted defect rather than a UI state. **Three candidates, one real.** That ratio is the point: the probe generates leads, you decide. If a run reports the fixture clean on defect 10 without looking at the candidates, that is the failure the manual pass in Step 4 exists to prevent.
 
