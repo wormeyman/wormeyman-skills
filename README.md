@@ -108,9 +108,9 @@ The other three departures:
 **It assesses the safety net before trusting it.** "Behavior-preserving under
 existing tests" means nothing until you know what the tests prove. So the skill
 checks coverage of the specific code being moved, and checks *what CI actually
-runs* - one repo here has 159 end-to-end specs holding nearly all its real
-coverage and none of them run in CI, so a green pipeline proves about 7 unit
-files. It also suggests deleting a line to confirm something goes red, because
+runs* - when the skill was built, one repo here had 159 end-to-end specs
+holding nearly all its real coverage and none of them ran in CI, so a green
+pipeline proved about 7 unit files. It also suggests deleting a line to confirm something goes red, because
 that answers the question in thirty seconds.
 
 **It has an exception list for duplication that must stay.** Forks that merge
@@ -152,9 +152,11 @@ way - the skill adds one finding and a lot of runtime.
 The first case is different in kind. Without the skill the model produced a
 confident, well-evidenced, nine-module refactoring plan, having correctly
 analysed churn and found the characterisation-test harness - and never once ran
-`git remote -v`. The repo is a fork sitting 399 commits ahead of a live
-upstream. It also called the safety net "unusually good" and staked its
-recommendation on that, when the suite it was pointing at never runs in CI.
+`git remote -v`. At the time the repo was a fork sitting 399 commits ahead of
+a live upstream. It also called the safety net "unusually good" and staked its
+recommendation on that, when the suite it was pointing at never ran in CI. (Both
+have since changed: upstream wound down and the suite now runs in CI. The
+skill's repo notes track that.)
 
 So the real lesson is **not** "measure co-change". It is that the constraints
 which sink a refactor are disproportionately the ones **not visible in the

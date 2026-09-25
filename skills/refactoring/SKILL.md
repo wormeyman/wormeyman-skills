@@ -13,7 +13,7 @@ The hardest part is not performing a refactor. It is deciding which code deserve
 
 ## Precondition: can you even tell if you broke something?
 
-Before proposing any change, establish these three. Skipping them is how refactors become outages.
+Before proposing any change, establish these four. Run item 4, the provenance check, first: it takes thirty seconds and can rule out the whole plan. Skipping them is how refactors become outages.
 
 **1. A passing baseline, and the command that proves it.** Run the repo's verification command and see it pass *before* you touch anything. Record what it is and how long it takes. If it does not pass now, stop - you cannot distinguish your breakage from the existing breakage.
 
