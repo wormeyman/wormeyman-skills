@@ -333,6 +333,34 @@ tailnet. The flag name invites exactly the wrong reading. Running the script
 against a fresh isolated machine reports `no external network: BROKEN`, which is
 how I would rather find that out.
 
+### [`cloudflare-migration-sweep`](skills/cloudflare-migration-sweep)
+
+Finds every repo across a GitHub account and its orgs that still needs a
+Cloudflare migration: a renamed test package, a removed Wrangler key, a GitHub
+Action that no longer exists, an API route with an end-of-life date. Two scripts
+do the work. `fetch_repos.py` shallow-clones everything the signed-in `gh` account
+can reach, and `scan.py` runs about 60 rules over the clones. Each rule links to
+an entry in `references/catalog.md` with the docs link, the fix, and the
+deadline.
+
+It exists because my first attempt used GitHub code search, which returned
+nothing for a private repo that used the package in three files. An empty
+search result looks exactly like a clean account. Cloning 93 repos took 30
+seconds and scanning them took 6, so there was never a reason to search.
+
+Most of the skill is about not believing the scan. The same sweep produced 15
+hits for deprecated AI models, and every one of them was in a generated types
+file that lists all models. A note left behind after a finished migration
+matches the same pattern as the code that needed it. So `scan.py` skips
+generated files, marks hits that sit in comments, and ends with a list of repos
+that mention Cloudflare but matched no rule. That list is where the real misses
+were: a Pages deploy run through `wrangler-action` with no `wrangler` in the
+command, and a site whose only deploy instructions were in its docs.
+
+The catalog was built from every Cloudflare `llms.txt` index and the changelog
+on 2026-09-25, and it will go stale. The skill says so at the top and explains
+how to refresh it.
+
 ## Install
 
 Copy a skill into your skills directory:
