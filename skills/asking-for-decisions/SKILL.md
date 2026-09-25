@@ -25,7 +25,7 @@ So the check is mechanical. Before you send a long message, read your last parag
 
 Do not ask about these. Asking too often is its own failure, and it trains people to stop reading the prompts.
 
-- **Something with an obvious default.** Pick it, say you picked it in one line, and keep going.
+- **Something with an obvious default.** Pick it, say you picked it in one line, and keep going. Deleting or overwriting something that cannot be restored is never an obvious default, however unused it looks. Ask.
 - **Permission to continue.** "Should I proceed?" and "Does this look right?" are not decisions. If you have enough to act, act.
 - **A fact you can check yourself.** Read the file. Run the command. Do not make the user your lookup table.
 - **A choice that does not change your next action.** If you would do the same thing either way, there is nothing to ask.
@@ -82,6 +82,7 @@ Re-asking later is fine when something you learned actually changes the trade-of
 | "I'll ask this one now and the rest after" | Batch them. Up to four in one call. |
 | "I don't have numbers for the options yet" | Then you are not ready to ask. Go measure first. |
 | "Should I proceed?" | Not a decision. Act. |
+| "It's an obvious cleanup with no downside" | If it cannot be restored, the downside is all of it. Ask. |
 
 ## A note on where this lives
 
