@@ -39,7 +39,8 @@ def scaffold(site: str, dest: Path, ad_network: str, site_name: str) -> Path:
     if dest.exists() and any(dest.iterdir()):
         raise SystemExit(f"{dest} exists and is not empty")
     shutil.copytree(TEMPLATE, dest, dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("__pycache__", ".uv-cache", "node_modules", ".cloudflare"))
+                    ignore=shutil.ignore_patterns("__pycache__", ".uv-cache", "node_modules", ".cloudflare",
+                                              ".pytest_cache", ".ruff_cache", ".DS_Store", "dist", ".wrangler"))
     values = {
         "__SITE__": site.rstrip("/"),
         "__SITE_HOST__": u.hostname.removeprefix("www."),

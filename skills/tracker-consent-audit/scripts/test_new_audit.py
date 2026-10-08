@@ -49,3 +49,10 @@ def test_refuses_non_empty_dest(tmp_path):
     (tmp_path / "audit" / "keep.txt").write_text("x")
     with pytest.raises(SystemExit):
         scaffold("https://www.example.com", tmp_path / "audit", "Mediavine", "X")
+
+
+def test_no_caches_or_build_output_copied(tmp_path):
+    dest = scaffold("https://www.example.com", tmp_path / "audit", "Mediavine", "X")
+    junk = {".pytest_cache", "__pycache__", "node_modules", ".cloudflare", "dist", ".wrangler", ".ruff_cache", ".DS_Store"}
+    found = sorted(str(p.relative_to(dest)) for p in dest.rglob("*") if junk & set(p.relative_to(dest).parts))
+    assert found == []
