@@ -45,7 +45,31 @@ def fake_fetch(plain=((200, b"A", False), (200, b"A", False)), gpc=(200, b"B", F
 def test_compare_stable_difference_differs():
     r = compare("https://v.example/s.js", fake_fetch())
     assert r["comparable"] and r["differs"]
+    assert r["basis"] == "exact"
     assert not r["unstable"] and not r["status_mismatch"]
+
+
+def test_compare_clarity_like_same_size_plain_and_short_gpc_differs_by_size():
+    # Plain bodies carry a per-request value: same length, different bytes.
+    r = compare("https://www.clarity.ms/tag/x", fake_fetch(
+        plain=((200, b"a" * 726, False), (200, b"b" * 726, False)),
+        gpc=(200, b"c" * 22, False)))
+    assert r["differs"] and r["basis"] == "size"
+    assert not r["unstable"]
+
+
+def test_compare_dynamic_plain_with_similar_gpc_size_is_unstable():
+    r = compare("https://v.example/s.js", fake_fetch(
+        plain=((200, b"a" * 5000, False), (200, b"b" * 5010, False)),
+        gpc=(200, b"c" * 4990, False)))
+    assert r["unstable"] and not r["differs"] and r["basis"] is None
+
+
+def test_compare_far_apart_plain_lengths_is_unstable():
+    r = compare("https://v.example/s.js", fake_fetch(
+        plain=((200, b"a" * 5000, False), (200, b"b" * 9000, False)),
+        gpc=(200, b"c" * 100, False)))
+    assert r["unstable"] and not r["differs"] and r["basis"] is None
 
 
 def test_compare_plain_bodies_differ_is_unstable_not_differs():

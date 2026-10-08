@@ -77,13 +77,29 @@ def compare(url: str, fetch) -> dict:
     s2, b2, t2 = fetch(url, False)
     s3, b3, t3 = fetch(url, True)
     comparable = all(s == 200 for s in (s1, s2, s3)) and not (t1 or t2 or t3)
-    unstable = comparable and b1 != b2
-    differs = comparable and not unstable and b1 != b3
+    unstable = differs = False
+    basis = None
+    if comparable and b1 == b2:
+        # Stable plain body: an exact byte difference under GPC is a real change.
+        differs = b1 != b3
+        basis = "exact" if differs else None
+    elif comparable:
+        # Plain bodies differ between fetches (per-request values such as an ID).
+        # Call it a real GPC change only when the plain lengths agree, and the GPC
+        # body is far shorter than them, and the gap is not small.
+        L1, L2 = len(b1), len(b2)
+        m = (L1 + L2) / 2
+        plain_close = abs(L1 - L2) <= 0.05 * max(L1, L2, 1)
+        gap = abs(len(b3) - m)
+        if plain_close and gap > 0.5 * m and gap >= 100:
+            differs, basis = True, "size"
+        else:
+            unstable = True
     return {
         "url": url, "plain_status": s1, "gpc_status": s3,
         "plain_bytes": len(b1), "gpc_bytes": len(b3),
         "comparable": comparable, "unstable": unstable, "differs": differs,
-        "status_mismatch": s1 != s3,
+        "basis": basis, "status_mismatch": s1 != s3,
     }
 
 
@@ -130,8 +146,9 @@ def main(argv: list[str] | None = None) -> int:
           f"Site-vendor scripts that differ with Sec-GPC: {len(differs)} of {len(responses)} compared. "
           f"Scripts found: {len(scripts)}, skipped beyond MAX_SCRIPTS: {result['scripts_skipped']}. "
           f"gpc.json: HTTP {status}.")
-    for url in differs:
-        print("  differs:", url[:120])
+    for r in responses:
+        if r["differs"]:
+            print(f"  differs ({r['basis']}): {r['url'][:120]}")
     print(f"Unstable (plain fetches disagree, not counted as differs): {len(unstable)}")
     for url in unstable:
         print("  unstable:", url[:120])
