@@ -42,11 +42,22 @@ to `gpc-probe.json`, under the keys `gpp_plain`, `gpp_gpc`, `usp_plain`,
   They are not values. Do not report them as strings.
 
 `gpc_probe.py` also compares each site-vendor script. It fetches the script twice
-without GPC and once with it. It reports `differs` only when both plain copies
-match each other and the GPC copy is different. A script that changes on every
-fetch is shown as `unstable`. A failed or blocked fetch is shown as not
-comparable. Treat only `differs` as a finding. This is how a vendor that hides
-its recorder from GPC requests shows up.
+without GPC and once with it. A `differs` result has a `basis`:
+
+- **`exact`**: both plain copies are the same, byte for byte, and the GPC copy
+  is different.
+- **`size`**: the plain copies differ a little (a value that changes on every
+  request) but are nearly the same size, and the GPC copy's size is far off.
+  This is how Microsoft Clarity shows up: it sends a short stub instead of its
+  recorder when GPC is on. Check every `size` result by hand before it becomes
+  a finding. A short error page or a longer body can also cause it.
+
+A script that changes on every fetch, with no clear size gap, is shown as
+`unstable`. A failed or blocked fetch is shown as not comparable. A
+`status_mismatch` (for example a 204 or a 403 only under GPC) is not counted as
+`differs`, but it can be a real GPC effect: check it by hand too. Report
+`differs` with basis `exact` as measured. Report a `size` result or a status
+mismatch only after the hand check, and say what you checked.
 
 ## 5. UK and EU testing
 

@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>__SITE_NAME__ Tracker Audit</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,650&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: one reading column (~46rem) of findings; tables and evidence break wider inside their own scroll boxes. */
 :root {
@@ -22,9 +19,9 @@
   --ok-bg: #e3f1e6;
   --ok-fg: #245a37;
   --chip: #edf1ee;
-  --font-display: "Literata", Georgia, "Times New Roman", serif;
-  --font-body: "Public Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -102,7 +99,7 @@ footer { color: var(--muted); font-size: 0.88rem; border-top: 1px solid var(--li
     <div class="eyebrow">__SITE_HOST__ · tested __DATE__</div>
     <h1>__SITE_NAME__ Tracker Audit</h1>
     <p class="lede">What loads when someone visits the site, who put it there, and what runs before the visitor makes any privacy choice.</p>
-    <p class="meta">Prepared by __AUTHOR__ for __CLIENT__. This is a technical inventory, not legal advice. Nothing on the site was changed for this test.</p>
+    <p class="meta">Prepared by __AUTHOR__ for __CLIENT__. This is a technical inventory, not legal advice. Apart from a temporary inventory plugin that was uploaded and then deleted, and a temporary Application Password that was then revoked, nothing on the site was changed for this test.</p>
   </header>
 
   <section>

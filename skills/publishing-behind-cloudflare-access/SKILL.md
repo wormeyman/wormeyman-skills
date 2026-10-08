@@ -98,8 +98,12 @@ the issuer and expiry, refetches the keys once for an unknown key ID, and serves
 `ASSETS` only when all pass.
 
 - **A recreated Access app has a new AUD tag.** Update `ACCESS_AUD`, or everyone gets 403.
-- **Test the closed side locally**: no token, junk, a forged signature, an unknown key ID and
-  `alg: none` must all return 403. The open side needs a real sign-in in a browser.
+- **Test the closed side locally**: no token, junk, a forged signature with an unknown key,
+  an unknown key ID and `alg: none` must all return 403. Those cases stop at the key lookup.
+  Once `ACCESS_TEAM` and `ACCESS_AUD` are filled, also send a forged signature with a real
+  key ID (the first `kid` from `<team>/cdn-cgi/access/certs`) and the real aud and iss. Only
+  that case reaches the signature check, and it must return 403 too. The open side needs a
+  real sign-in in a browser.
 - **Fix a policy by editing it, never by deleting the app.** If the app must be recreated,
   turn the public URL off first.
 

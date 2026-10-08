@@ -3,6 +3,9 @@
 *.sql
 *.sql.gz
 *.tar.gz
+*.zip
+*.gz
+# A local-copy WordPress docroot must live OUTSIDE this audit folder, never in it.
 
 # Tool caches
 .uv-cache/

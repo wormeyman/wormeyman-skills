@@ -22,7 +22,9 @@ The template has a short top section and nine numbered sections.
 3. **What runs before any consent choice.** The table of requests that fire
    before a visitor clicks anything.
 4. **What Global Privacy Control changes.** Plain run against GPC run, with the
-   `differs` results.
+   `differs` results. A `differs` with basis `size`, and a `status_mismatch`,
+   go in only after a hand check of the two bodies or statuses (see
+   `ad-networks.md` section 4).
 5. **Consent tools on the site.** What is installed, and whether it blocks
    anything.
 6. **Forms and typed information.** Which fields reach a recorder or tracker.

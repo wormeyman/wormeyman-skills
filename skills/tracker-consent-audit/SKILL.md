@@ -28,11 +28,13 @@ its own server. Only a logged run shows which.
    (commands in the folder's README). Six pages, plain and with GPC, about 12 minutes.
 4. **Analyze.** `analyze.py`, then `form_test.py`, then `gpc_probe.py`.
 5. **Site internals.** Ask the client (or Eric) to upload `tracker-audit-probe.php`
-   to `wp-content/mu-plugins/` and create an Application Password. Run
-   `fetch_inventory.py` (type the password at its hidden prompt, never on the
-   command line), re-run `analyze.py`, then **delete the probe file and revoke the
-   Application Password**. The probe stops answering 48 hours after upload; the
-   password does not expire on its own and is a full admin login.
+   to `wp-content/mu-plugins/` and create an Application Password. The **person**
+   runs `fetch_inventory.py` in their own terminal and types the password at its
+   hidden prompt, never on the command line. An agent's shell has no terminal for
+   that prompt, so give the person the command. **Never ask for the Application
+   Password in chat.** Then re-run `analyze.py`, and **delete the probe file and
+   revoke the Application Password**. The probe stops answering 48 hours after
+   upload; the password does not expire on its own and is a full admin login.
 6. **Write findings.** Each finding is confirmed, likely, or an evidence gap. See
    `references/reporting.md`.
 7. **Report.** Fill `report/template.html`, build it, run the accessibility audit
@@ -51,13 +53,15 @@ Mediavine, GPC and GPP strings, UK and EU tests), `references/reporting.md`
 - Whether to test UK and EU visitors (needs a VPN in an isolated VM or container, never machine-wide).
 - Whether the probe may be uploaded, or a database export used instead (`references/wordpress.md`).
 - Whether a report page is wanted, and who may open it.
-- What may be removed. The audit changes nothing on the site.
+- What may be removed. The audit itself changes nothing on the site apart from the probe and its Application Password.
 
 ## Safety
 
-- The audit changes nothing on the live site except uploading and deleting the probe. The probe makes
-  no changes itself and rolls back database writes made by the head and footer code it runs. It cannot
-  undo file writes, cache writes, outbound requests, writes to non-InnoDB tables or DDL. WordPress also
+- The audit changes nothing on the live site except uploading and deleting the probe and adding and
+  revoking its Application Password. The probe makes no changes itself and rolls back database writes
+  made by the head and footer code it runs. It cannot undo file writes, cache writes, outbound requests,
+  writes to non-InnoDB tables, DDL, or code that commits its own transaction; its response lists the
+  non-InnoDB tables and the shutdown callbacks it removed. Single-site WordPress only. WordPress also
   records when the Application Password was last used. Use containers for the browser and for any
   database copy.
 - Delete the probe after use, and revoke the Application Password.

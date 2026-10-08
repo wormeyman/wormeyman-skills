@@ -438,13 +438,17 @@ months apart then mean the same thing.
 
 **It uses a self-expiring probe, not a database export.** The probe is a small
 plugin that stops working after a short time. It makes no changes itself. It
-runs the site's own head and footer code, rolls back any database writes that
-code makes, and answers only with tracker IDs it matched. It never returns
-users, comments, subscribers or option values beyond those matches. So no
-personal data leaves the site. It also names the hook that prints each tracker,
-which an export cannot do. It has limits. It cannot undo file writes, cache
-writes or outbound requests that the site's code makes while it runs, and the
-skill says so before you install it. The report Worker fails closed: it checks
+runs the site's own head and footer code and rolls back the database writes
+that code makes. It answers with the plugin and theme names and versions, the
+must-use plugin file names, and each hooked callback with its file and owner.
+For what each callback prints, it gives the hosts and tracker IDs and a
+300-character excerpt, which is the same markup visitors receive. It also lists
+the option names that hold tracker IDs, with the matched IDs, and the consent
+plugins' option names. It never returns users, comments, subscribers, or option
+values beyond the matched IDs. It names the hook that prints each tracker,
+which an export cannot do. It has limits. Its rollback cannot undo file writes,
+cache writes, outbound requests, or writes to tables that are not InnoDB, and
+it reports those tables. The skill says so before you install it. The report Worker fails closed: it checks
 the Access token itself, so a deleted Access app means 403, not a public report.
 
 **It runs in containers.** Chrome and a virtual display run in a container, so

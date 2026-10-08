@@ -35,13 +35,21 @@ what you saw in the browser.
 `tracker-audit-probe.php` is a small must-use plugin. It lets `fetch_inventory.py`
 read the site's real head and footer output and its active plugins and options.
 
+- **Single-site WordPress only.** That is the supported case. On a multisite
+  network, a sub-site's administrator could see the whole network's plugin list
+  through the probe, and network-wide plugins are not listed as active. Do not
+  use it on multisite.
 - **Upload.** Put it in `wp-content/mu-plugins/`. Create that folder if it is
   missing. It loads on its own and needs no activation.
 - **Application Password.** In WordPress, open Users, then Profile, and add one
   under Application Passwords. WordPress shows it once. The script asks for it at
   a hidden prompt. Never paste it into a command line, a chat or a file.
 - **48-hour expiry.** The probe stops answering 48 hours after the upload. The
-  password does not expire. It is a full admin login until someone revokes it.
+  clock is the file's time on the server, and a time in the future also counts
+  as expired. An upload tool that keeps file times (`rsync -a`, `scp -p`, some
+  SFTP clients) can make a fresh copy look old, so re-save the file on the
+  server. The password does not expire. It is a full admin login until someone
+  revokes it.
 - **Admin notice.** While it is installed, the probe shows a notice in the
   dashboard, so no one forgets it is there.
 - **What it returns.** WordPress and PHP versions. The theme and parent theme
@@ -51,13 +59,23 @@ read the site's real head and footer output and its active plugins and options.
   prints. Enqueued script URLs. The first 300 characters of each callback's
   printed markup, which is the same markup any visitor sees in the page source.
   Option names with the tracker IDs they matched. Consent plugins' option names.
+  It also lists what its rollback could not cover: tables that are not InnoDB,
+  whether a `db.php` drop-in replaces the database layer, and any shutdown
+  callbacks the site's code added, which the probe removed without running.
 - **What it never returns.** Users, comments, subscribers, form entries, or
   option values beyond the matched tracker IDs. The markup excerpt is not
   filtered for secrets, so treat the output as you would page source.
-- **Changes.** The probe makes no changes itself. It rolls back database writes
-  made by the head and footer code it runs. It cannot undo file writes, cache
-  writes, outbound requests, writes to non-InnoDB tables or DDL. WordPress records
-  when the Application Password was last used.
+- **Changes.** The probe makes no changes itself. It runs the head and footer
+  code inside a database transaction and rolls it back. If the transaction cannot
+  start, it runs no plugin code and returns an error. The rollback cannot undo:
+  writes to the tables in `non_innodb_tables`, DDL (it commits on its own), code
+  that commits its own transaction, persistent object caches, file writes and
+  outbound requests. Shutdown work that the code queues is removed before it can
+  run and listed in `removed_shutdown_callbacks`. WordPress records when the
+  Application Password was last used.
+- **Cached admin data.** The probe switches to an anonymous visitor before it
+  runs any hook. A plugin that saved the administrator's details at `init`,
+  before that switch, may still print them, so they can show up in an excerpt.
 - **A limit.** It runs the head and footer hooks during a REST request, not a
   page view. Code that depends on which page is shown (the front page, a single
   post) may be missing. The browser audit shows what visitors actually get.
