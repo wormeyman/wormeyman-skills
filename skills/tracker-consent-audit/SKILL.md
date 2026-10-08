@@ -61,7 +61,9 @@ Mediavine, GPC and GPP strings, UK and EU tests), `references/reporting.md`
   revoking its Application Password. The probe makes no changes itself and rolls back database writes
   made by the head and footer code it runs. It cannot undo file writes, cache writes, outbound requests,
   writes to non-InnoDB tables, DDL, or code that commits its own transaction; its response lists the
-  non-InnoDB tables and the shutdown callbacks it removed. Single-site WordPress only. WordPress also
+  non-InnoDB tables and the shutdown callbacks it removed. Like any visit, each call also runs the
+  site's own per-request code, such as a request logger, which the probe does not roll back.
+  Single-site WordPress only. WordPress also
   records when the Application Password was last used. Use containers for the browser and for any
   database copy.
 - Delete the probe after use, and revoke the Application Password.

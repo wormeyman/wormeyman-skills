@@ -13,6 +13,16 @@ these places.
 - **Code Snippets.** The plugin stores PHP and HTML snippets in its own table.
 - **Leftover settings.** Insert Headers and Footers keeps its saved scripts after
   the plugin is deleted, and some other code may still print them.
+- **Server-side collection.** Some plugins send visitor data from the server, so
+  no browser run sees it. The Microsoft Clarity plugin (seen in version 0.10.35)
+  logs every GET request outside wp-admin on `shutdown`, REST calls included:
+  the visitor's IP address, user agent and URL. It stores them in its
+  `clarity_collect_events` table. About every 5 minutes, when the site gets a
+  visit, a WP-Cron job removes them and posts them to `ai.clarity.ms/collect`.
+  It does not check consent or GPC first. To spot it, the probe's plugin list
+  gives the version. On an export or a local copy, look for rows in
+  `<prefix>clarity_collect_events`. On a live site that table is often empty,
+  because the cron job drains it.
 - **Hosting.** Some hosts add analytics for you. Pressable adds Gauges. Some sites
   turn on Cloudflare Web Analytics at the edge, with no plugin at all.
 
@@ -73,6 +83,17 @@ read the site's real head and footer output and its active plugins and options.
   outbound requests. Shutdown work that the code queues is removed before it can
   run and listed in `removed_shutdown_callbacks`. WordPress records when the
   Application Password was last used.
+- **Writes outside those hooks.** The rollback covers only the code the probe
+  runs itself: the switch to a visitor and the head, footer, body-open and
+  enqueue callbacks. Code that runs on every request, at `init` or on
+  `shutdown`, still makes its usual writes. That is the same as for any visit,
+  but it shows up if you compare table checksums before and after a probe call.
+  On a local copy, make one plain request first (for example
+  `/wp-json/wp/v2/users/me` with the same login) and compare against that. A
+  request logger, such as the Clarity plugin's, still adds one row per call.
+  The probe should add nothing beyond what the plain request added. A request
+  can also add core's `theme_roots` transient, after a restore or once the
+  cached theme list expires.
 - **Cached admin data.** The probe switches to an anonymous visitor before it
   runs any hook. A plugin that saved the administrator's details at `init`,
   before that switch, may still print them, so they can show up in an excerpt.
@@ -116,12 +137,15 @@ avoid that path.
 1. Make a folder for the copy, and a network: `podman network create audit-net`.
 2. Start `mariadb:10.6` on that network with a database, user and password.
 3. Start `wordpress:php8.3-apache` on the same network, with the folder's docroot
-   bind-mounted. Run `wordpress:cli` against the same mount for WP-CLI. Use
-   `wp --allow-root`.
-4. Install All-in-One WP Migration and its Unlimited Extension **before** you
-   block outbound requests. Both download and check themselves online. Get the
-   extension from the client or from Eric. Do not copy any purchase link into a
-   repo or a report.
+   bind-mounted. Run `wordpress:cli` against the same mount for WP-CLI, with
+   `--user 0:0` so it can write to `wp-content`. Use `wp --allow-root`. That
+   image's MariaDB client insists on TLS, so `wp db query` fails. Run SQL with
+   `podman exec <db container> mariadb` instead.
+4. Install All-in-One WP Migration and a paid extension **before** you block
+   outbound requests. The free plugin (measured on 7.112) refuses
+   `wp ai1wm restore`. The Unlimited Extension works, and so does a storage
+   extension such as Google Drive. The plugin and its extension both download and check themselves online. Get the extension from the client or
+   from Eric. Do not copy any purchase link into a repo or a report.
 5. Set `WP_HTTP_BLOCK_EXTERNAL` and `DISABLE_WP_CRON` to `true` in `wp-config.php`.
    Now the copy cannot call live services or run the client's scheduled jobs.
    Check the imported plugin list too: a copied database turns back on plugins
