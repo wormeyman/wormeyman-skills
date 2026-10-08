@@ -1,6 +1,8 @@
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -56,3 +58,13 @@ def test_no_caches_or_build_output_copied(tmp_path):
     junk = {".pytest_cache", "__pycache__", "node_modules", ".cloudflare", "dist", ".wrangler", ".ruff_cache", ".DS_Store"}
     found = sorted(str(p.relative_to(dest)) for p in dest.rglob("*") if junk & set(p.relative_to(dest).parts))
     assert found == []
+
+
+def test_probe_mtime_is_now(tmp_path):
+    # The probe expires 48 hours after its file time, so an old template time would make it expired on upload.
+    os.utime(Path(__file__).resolve().parent / "template" / "tracker-audit-probe.php", (0, 0))
+    try:
+        dest = scaffold("https://www.example.com", tmp_path / "audit", "Mediavine", "X")
+        assert abs(time.time() - (dest / "tracker-audit-probe.php").stat().st_mtime) < 60
+    finally:
+        os.utime(Path(__file__).resolve().parent / "template" / "tracker-audit-probe.php")

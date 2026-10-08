@@ -7,9 +7,17 @@
    and in the GPC run, so "the ad network honors GPC" is a recorded fact.
    Values that do not match the expected format are listed, never decoded.
 2. Fetches each script the site's own vendors served, twice without the
-   Sec-GPC: 1 header and once with it. A script counts as "differs" only when
-   both plain fetches agree and the GPC body is different. Microsoft Clarity
-   returns a one-line stub instead of its recorder when GPC is on.
+   Sec-GPC: 1 header and once with it. A script counts as "differs" on one of
+   two bases, recorded as "basis":
+   - "exact": both plain copies are identical and the GPC copy is different.
+   - "size": the plain copies differ slightly (a per-request value) but have
+     nearly the same size, and the GPC copy's size is far off. Check every
+     "size" result by hand before it becomes a finding: a short error stub or
+     a longer body can also cause it.
+   A "status_mismatch" (for example 204 or 403 only under GPC) can be a real
+   GPC effect too, but is not counted as "differs": check it by hand.
+   Microsoft Clarity returns a one-line stub instead of its recorder when GPC
+   is on, which shows up as "size".
 3. Fetches /.well-known/gpc.json.
 
 Usage:  uv run scripts/gpc_probe.py results/<run-id>
@@ -148,7 +156,12 @@ def main(argv: list[str] | None = None) -> int:
           f"gpc.json: HTTP {status}.")
     for r in responses:
         if r["differs"]:
-            print(f"  differs ({r['basis']}): {r['url'][:120]}")
+            hint = "  (check by hand before reporting)" if r["basis"] == "size" else ""
+            print(f"  differs ({r['basis']}): {r['url'][:120]}{hint}")
+    mismatched = [r for r in responses if r["status_mismatch"]]
+    print(f"Status changes under GPC (not counted as differs, check by hand): {len(mismatched)}")
+    for r in mismatched:
+        print(f"  HTTP {r['plain_status']} plain, {r['gpc_status']} with GPC: {r['url'][:120]}")
     print(f"Unstable (plain fetches disagree, not counted as differs): {len(unstable)}")
     for url in unstable:
         print("  unstable:", url[:120])

@@ -11,6 +11,7 @@ the same code as the first audit even if this skill has changed since.
 """
 
 import argparse
+import os
 import re
 import secrets
 import shutil
@@ -41,6 +42,8 @@ def scaffold(site: str, dest: Path, ad_network: str, site_name: str) -> Path:
     shutil.copytree(TEMPLATE, dest, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__", ".uv-cache", "node_modules", ".cloudflare",
                                               ".pytest_cache", ".ruff_cache", ".DS_Store", "dist", ".wrangler"))
+    # copytree keeps the template's file time; the probe's 48-hour clock must start now, not at the skill's checkout.
+    os.utime(dest / "tracker-audit-probe.php")
     values = {
         "__SITE__": site.rstrip("/"),
         "__SITE_HOST__": u.hostname.removeprefix("www."),

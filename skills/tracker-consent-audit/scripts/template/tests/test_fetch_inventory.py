@@ -62,7 +62,23 @@ def test_401_names_application_passwords(tmp_path, site, capsys):
 def test_410_says_expired(tmp_path, site, capsys):
     ROUTES["/wp-json/tracker-audit/v1/inventory"] = (410, {}, b'{"code":"tracker_audit_expired"}')
     assert run(tmp_path, site) == 1
-    assert "expired" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "expired" in out
+    assert "timestamps" in out  # an upload that keeps the old file time looks expired
+
+
+def test_403_names_firewalls_and_prints_the_code(tmp_path, site, capsys):
+    ROUTES["/wp-json/tracker-audit/v1/inventory"] = (403, {}, b'{"code":"rest_forbidden","message":"x"}')
+    assert run(tmp_path, site) == 1
+    out = capsys.readouterr().out
+    assert "not an administrator" in out and "firewall" in out
+    assert "rest_forbidden" in out
+
+
+def test_403_html_page_prints_no_code(tmp_path, site, capsys):
+    ROUTES["/wp-json/tracker-audit/v1/inventory"] = (403, {}, b"<html>Access denied</html>")
+    assert run(tmp_path, site) == 1
+    assert "Error code" not in capsys.readouterr().out
 
 
 def test_cut_short_names_the_callback(tmp_path, site, capsys):

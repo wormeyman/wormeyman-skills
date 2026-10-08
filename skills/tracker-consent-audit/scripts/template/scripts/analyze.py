@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""Turn one audit.py run into the tables for deliverables 1, 2 and 7.
+"""Turn one audit.py run into the tracker tables for the report.
 
 Usage:  uv run scripts/analyze.py results/<run-id>
 Writes: results/<run-id>/findings.md and prints it.

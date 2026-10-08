@@ -39,7 +39,7 @@ RECORDER_UPLOADS = ("clarity.ms/collect", "hotjar.com/api", "hotjar.io", "fullst
 CANARY = "__CANARY__"
 
 # Trackers the site adds itself, by registrable domain: (vendor, who adds it).
-# Leave "who adds it" as "unknown" until the probe inventory (Task 6) fills it.
+# Leave "who adds it" as "unknown" until the probe inventory (inventory.json) fills it.
 SITE_VENDORS = {
     "clarity.ms": ("Microsoft Clarity (session recording)", "unknown"),
     "bing.com": ("Microsoft Clarity / Bing", "unknown"),

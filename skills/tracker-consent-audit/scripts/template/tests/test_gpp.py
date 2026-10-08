@@ -1,4 +1,3 @@
-# $TPL/tests/test_gpp.py
 import sys
 from pathlib import Path
 

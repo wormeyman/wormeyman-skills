@@ -37,9 +37,11 @@ LOOPBACK = ("127.0.0.1", "localhost", "::1")
 HINTS = {
     401: "WordPress did not accept the login. Check the username and Application Password. "
          "Security plugins (Wordfence, Solid Security) can turn Application Passwords off.",
-    403: "That user is not an administrator.",
+    403: "That user is not an administrator, or a firewall or host bot check blocked the request.",
     404: "No probe route. Is tracker-audit-probe.php in wp-content/mu-plugins/?",
-    410: "The probe expired (48 hours after upload). Delete it, and upload a fresh copy if you still need it.",
+    410: "The probe expired (48 hours after upload). Delete it, and upload a fresh copy if you still need it. "
+         "An upload that keeps file timestamps (rsync -a, scp -p, some SFTP clients) makes a fresh copy look old: "
+         "re-save or touch the file on the server.",
 }
 
 
@@ -70,6 +72,15 @@ def fetch(url: str, user: str, password: str, cafile: str | None):
             return r.status, r.headers, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.headers, e.read()
+
+
+def _error_code(body: bytes) -> str:
+    try:
+        data = json.loads(body)
+    except ValueError:
+        return ""
+    code = data.get("code") if isinstance(data, dict) else None
+    return code if isinstance(code, str) else ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -105,6 +116,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if status != 200:
         print(f"HTTP {status}: {HINTS.get(status, body[:300].decode(errors='replace'))}")
+        code = _error_code(body)
+        if code:  # the WordPress error code tells a probe or login refusal from a firewall page
+            print(f"Error code in the response: {code}")
         if "X-Tracker-Audit-Current" in headers:  # a PHP fatal in a callback returns 500 with this header
             print(f"The last callback the probe ran was: {headers['X-Tracker-Audit-Current']}")
         return 1
