@@ -14,5 +14,9 @@ add_action( 'wp_footer', function () {
 		echo 'partial';
 		exit;
 	}
-	update_option( 'fixture_write_test', time() ); // the probe must roll this back
+	// Write only during the probe's REST request, so stray page views never commit it.
+	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+		update_option( 'fixture_write_test', time() ); // the probe must roll this back
+		echo '<script>/*fixture-wrote*/</script>'; // lets the check see the write ran in this request
+	}
 } );

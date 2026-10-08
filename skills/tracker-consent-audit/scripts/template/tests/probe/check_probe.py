@@ -61,6 +61,14 @@ def main() -> int:
         current = headers.get("X-Tracker-Audit-Current", "")
         if "wp_footer" not in current:
             fails.append(f"exit: expected X-Tracker-Audit-Current naming wp_footer, got {current!r}")
+        try:
+            is_inventory = "hooks" in json.loads(body)
+        except (ValueError, TypeError):
+            is_inventory = False
+        if is_inventory:
+            fails.append("exit: got the full JSON inventory, so nothing exited")
+        if "partial" not in body:
+            fails.append(f"exit: body lacks the fixture's 'partial' output: {body[:200]!r}")
     else:
         if status != 200:
             fails.append(f"admin: expected 200, got {status}: {body[:200]}")
@@ -77,6 +85,9 @@ def main() -> int:
                 fails.append(f"enqueued fixture-pixel not attributed: {enq}")
             if inv["options"].get("fixture_header_scripts", {}).get("ga4") != ["G-OPTION4567"]:
                 fails.append(f"option scan missed G-OPTION4567: {inv['options']}")
+            foot = [c for c in inv["hooks"]["wp_footer"] if "fixture-wrote" in c.get("prints", {}).get("excerpt", "")]
+            if not foot or foot[0]["owner"] != "plugin:fixture-tracker" or foot[0]["status"] != "ok":
+                fails.append(f"fixture wp_footer entry (write ran inside this request) missing or not ok: {foot}")
             leaked = [s for s in SECRETS if s in body]
             if leaked:
                 fails.append(f"private data in the response: {leaked}")
