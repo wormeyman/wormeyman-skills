@@ -1,0 +1,15 @@
+# Never commit a site export or database dump: it holds the client's users and subscribers
+*.wpress
+*.sql
+*.sql.gz
+*.tar.gz
+
+# Tool caches
+.uv-cache/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.wrangler/
+.cloudflare/
+.DS_Store
