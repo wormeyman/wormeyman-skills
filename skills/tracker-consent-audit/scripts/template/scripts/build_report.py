@@ -11,6 +11,7 @@ Usage:  uv run scripts/build_report.py results/<run-id>
 
 import html
 import json
+import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -48,6 +49,9 @@ def main() -> None:
         f'<div class="chips">{chips}</div></details>'
     )
     page = (HERE / "report" / "template.html").read_text()
+    left = sorted(set(re.findall(r"<!-- FILL|__[A-Z_]+__", page)))
+    if left:
+        sys.exit(f"report/template.html still has placeholders: {', '.join(left)}")
     assert "<!--DOMAINS-->" in page
     page = page.replace("<!--DOMAINS-->", block)
     (HERE / "report" / "index.html").write_text(page)
