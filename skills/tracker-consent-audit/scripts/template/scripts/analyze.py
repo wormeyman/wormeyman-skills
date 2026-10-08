@@ -70,11 +70,35 @@ def reg_domain(host: str) -> str:
     return ".".join(parts[-2:])
 
 
-def label(dom: str) -> tuple[str, str]:
-    """(vendor name, who adds it)."""
+def label(dom: str, owners: dict[str, str] | None = None) -> tuple[str, str]:
+    """(vendor name, who adds it). The probe inventory, when present, says who adds it."""
     if dom in SITE_VENDORS:
-        return SITE_VENDORS[dom]
-    return (NAMES.get(dom, dom), f"{AD_NETWORK} ad stack (inferred)")
+        name, source = SITE_VENDORS[dom]
+    else:
+        name, source = NAMES.get(dom, dom), f"{AD_NETWORK} ad stack (inferred)"
+    if owners and dom in owners:
+        source = owners[dom]
+    return name, source
+
+
+def inventory_owners(run: Path) -> dict[str, str]:
+    """Registrable domain -> which plugin, theme or mu-plugin prints or enqueues it."""
+    f = run / "inventory.json"
+    if not f.exists():
+        return {}
+    inv = json.loads(f.read_text())
+    found: dict[str, list[str]] = defaultdict(list)
+    for hook, callbacks in inv.get("hooks", {}).items():
+        for cb in callbacks:
+            if cb.get("owner") in ("core", "internal", "unknown", None):
+                continue  # core prints every enqueued script; the enqueuer is the real source
+            hosts = list(cb.get("prints", {}).get("domains", []))
+            hosts += [urlparse(src).hostname or "" for src in cb.get("enqueued", {}).values()]
+            where = f"{cb['owner']} ({hook})"
+            for host in hosts:
+                if host and where not in found[reg_domain(host)]:
+                    found[reg_domain(host)].append(where)
+    return {d: "; ".join(w) for d, w in found.items()}
 
 
 def load(run: Path):
@@ -89,6 +113,7 @@ def load(run: Path):
 def main() -> None:
     run = Path(sys.argv[1])
     summary, reqs = load(run)
+    owners = inventory_owners(run)
     pages = list(summary["fresh"].keys())
     out: list[str] = []
     w = out.append
@@ -109,7 +134,7 @@ def main() -> None:
             host = urlparse(r["url"]).hostname or ""
             if not host or host == SITE_HOST or host.endswith("." + SITE_HOST):
                 continue
-            name, source = label(reg_domain(host))
+            name, source = label(reg_domain(host), owners)
             who[name] = source
             cell = table[name][page]
             cell[0] += 1
@@ -214,6 +239,17 @@ def main() -> None:
         for p in FORM_PAGES:
             r = summary[s][p]
             w(f"- {s}/{p}: {r['form_test']}; leaks: {r['canary_leaks'] or 'none'}")
+
+    inv_file = run / "inventory.json"
+    if inv_file.exists():
+        inv = json.loads(inv_file.read_text())
+        w("\n## Tracker IDs stored in settings (probe inventory)\n")
+        for opt, ids in sorted(inv.get("options", {}).items()):
+            w(f"- `{opt}`: " + ", ".join(f"{k} {', '.join(v)}" for k, v in ids.items()))
+        w("\n## Consent plugins (probe inventory)\n")
+        for name, c in sorted(inv.get("consent_plugins", {}).items()):
+            state = "active" if c["active"] else ("installed, inactive" if c["installed"] else "not installed")
+            w(f"- {name}: {state}; option names: {', '.join(c['option_names']) or 'none'}")
 
     text = "\n".join(out) + "\n"
     (run / "findings.md").write_text(text)
