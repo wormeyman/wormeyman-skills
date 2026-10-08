@@ -1,6 +1,6 @@
 {
   "name": "wormeyman-skills",
-  "description": "Accessibility audits, dependency audits, refactoring, sandboxed execution, Cloudflare Access publishing, Cloudflare migration sweeps, decision prompts and session handoffs.",
+  "description": "Accessibility audits, dependency audits, refactoring, sandboxed execution, Cloudflare Access publishing, Cloudflare migration sweeps, tracker and consent audits, decision prompts and session handoffs.",
   "author": {
     "name": "wormeyman",
     "url": "https://github.com/wormeyman"

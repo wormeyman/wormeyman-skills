@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>__SITE_NAME__ Tracker Audit</title>
+<style>
+/* Layout: one reading column (~46rem) of findings; tables and evidence break wider inside their own scroll boxes. */
+:root {
+  --bg: #f6f8f6;
+  --surface: #ffffff;
+  --fg: #1c2420;
+  --muted: #5a665f;
+  --line: #d9e0db;
+  --accent: #2f6b45;
+  --warn-bg: #fdf1dc;
+  --warn-fg: #7a4a06;
+  --ok-bg: #e3f1e6;
+  --ok-fg: #245a37;
+  --chip: #edf1ee;
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121714; --surface: #1a211d; --fg: #e3e9e5; --muted: #9aa8a0; --line: #2d3832;
+    --accent: #7cc494; --warn-bg: #3a2c14; --warn-fg: #f2c878; --ok-bg: #1d3325; --ok-fg: #9ad8ae;
+    --chip: #222b26; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121714; --surface: #1a211d; --fg: #e3e9e5; --muted: #9aa8a0; --line: #2d3832;
+  --accent: #7cc494; --warn-bg: #3a2c14; --warn-fg: #f2c878; --ok-bg: #1d3325; --ok-fg: #9ad8ae;
+  --chip: #222b26; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { color-scheme: light; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.6 var(--font-body);
+  margin: 0;
+  padding-inline: 16px; padding-block: 2.5rem 4rem;
+}
+main { max-width: 46rem; margin-inline: auto; display: grid; gap: 2.75rem; }
+section { display: grid; gap: 0.9rem; min-width: 0; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 650; line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); }
+h2 { font-size: 1.45rem; padding-top: 0.4rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; font-weight: 500; }
+p, ul, ol { margin: 0; max-width: 65ch; }
+ul, ol { padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+code, .id { font-family: var(--font-mono); font-size: 0.86em; background: var(--chip); padding: 0.05em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.lede { font-size: 1.1rem; }
+.meta { color: var(--muted); font-size: 0.92rem; }
+
+.callout { background: var(--warn-bg); color: var(--warn-fg); padding: 0.9rem 1.1rem; border-radius: 6px; }
+.callout strong { font-weight: 600; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+thead th { font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; }
+tbody th { font-weight: 600; }
+.table-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.name { min-width: 9rem; }
+.pill { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.pill.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem 1rem; display: grid; gap: 0.15rem; }
+.stat b { font-family: var(--font-display); font-size: 1.8rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat span { font-size: 0.88rem; color: var(--muted); }
+
+figure { margin: 0; display: grid; gap: 0.5rem; }
+figure img { width: 100%; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; display: block; }
+figcaption { font-size: 0.88rem; color: var(--muted); max-width: 65ch; }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1.25rem; }
+
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 0.7rem 1rem; }
+summary { cursor: pointer; font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.8rem; }
+.chips span { font-family: var(--font-mono); font-size: 0.78rem; background: var(--chip); padding: 0.1rem 0.45rem; border-radius: 3px; }
+footer { color: var(--muted); font-size: 0.88rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <header style="display:grid;gap:0.7rem">
+    <div class="eyebrow">__SITE_HOST__ · tested __DATE__</div>
+    <h1>__SITE_NAME__ Tracker Audit</h1>
+    <p class="lede">What loads when someone visits the site, who put it there, and what runs before the visitor makes any privacy choice.</p>
+    <p class="meta">Prepared by __AUTHOR__ for __CLIENT__. This is a technical inventory, not legal advice. Apart from a temporary inventory plugin that was uploaded and then deleted, and a temporary Application Password that was then revoked, nothing on the site was changed for this test.</p>
+  </header>
+
+  <section>
+    <h2>How it was tested</h2>
+    <!-- FILL: the pages tested, plain vs GPC, the database or probe source, and a Limits callout (regions not tested, no form submitted). -->
+  </section>
+
+  <section>
+    <h2>The short version</h2>
+    <div class="stats">
+      <!-- FILL: four .stat tiles: consent prompts shown, cookies in the first 5 s, outside companies, companies with GPC on. -->
+    </div>
+    <ul>
+      <!-- FILL: five or six plain-language bullets. Lead with session recording if present. -->
+    </ul>
+  </section>
+
+  <section id="inventory">
+    <h2>1. Trackers from the site's own setup</h2>
+    <!-- FILL: table with columns Tracker | What it sends | Put there by | Before any choice. "Put there by" comes from the probe inventory. Use scope="col"/"row" and a visually-hidden caption, and keep tabindex="0" role="region" aria-label on .table-wrap. -->
+  </section>
+
+  <section>
+    <h2>2. Trackers from __AD_NETWORK__'s ad code</h2>
+    <!-- FILL: one paragraph on the auction, a sentence naming the biggest buyers. -->
+    <!--DOMAINS-->
+  </section>
+
+  <section id="before-consent">
+    <h2>3. What runs before any consent choice</h2>
+    <!-- FILL: per-page table: outside companies in the first 5 s, cookies in the first 5 s, cookies by the end. -->
+  </section>
+
+  <section id="gpc">
+    <h2>4. What Global Privacy Control changes</h2>
+    <!-- FILL: the decoded GPP or us_privacy change (gpc-probe.json), the per-page companies and cookies table, which site vendors honor GPC (script responses that change) and which do not. -->
+  </section>
+
+  <section id="consent-tools">
+    <h2>5. Consent tools on the site</h2>
+    <!-- FILL: consent plugins from the probe inventory (installed, active, set up or not), the ad network's own links and banner behavior. -->
+  </section>
+
+  <section id="forms">
+    <h2>6. Forms and typed information</h2>
+    <!-- FILL: which fields got the canary, how many recorder uploads followed the typing, and the result. Never write "none found" without the upload count. -->
+  </section>
+
+  <section id="policy">
+    <h2>7. The privacy policy</h2>
+    <!-- FILL: which vendors it names and which it misses. Wording is for a lawyer or a policy service. -->
+  </section>
+
+  <section id="evidence">
+    <h2>8. Evidence</h2>
+    <!-- FILL: two figures (homepage top, form test) with full alt text. JPEGs: magick in.png -resize 1100x1100\> -quality 62 report/name.jpg -->
+  </section>
+
+  <section id="questions">
+    <h2>9. Open questions</h2>
+    <!-- FILL: questions for the ad network and for the client. -->
+  </section>
+
+  <footer>Tested __DATE__ with Google Chrome on Linux from a US address. Tracker sources come from the tracker-audit-probe inventory.</footer>
+</main>
+</body>
+</html>

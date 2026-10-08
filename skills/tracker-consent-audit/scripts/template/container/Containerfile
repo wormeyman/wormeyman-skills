@@ -1,0 +1,7 @@
+# Real Google Chrome plus a virtual screen (Xvfb), so audit.py --visible runs
+# headed Chrome without opening windows on the host. Built and run with podman.
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
+RUN pip install --no-cache-dir --break-system-packages uv playwright==1.63.0 \
+ && python3 -m playwright install --with-deps chrome
+ENV UV_CACHE_DIR=/work/.uv-cache UV_PYTHON_PREFERENCE=only-system
+WORKDIR /work

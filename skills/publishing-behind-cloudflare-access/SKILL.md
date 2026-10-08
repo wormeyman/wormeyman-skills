@@ -71,6 +71,42 @@ curl -s -o /dev/null -w "%{http_code}\n" https://<version>-<worker>.<subdomain>.
 Had Access been attached to the hostname instead, every preview URL would have
 been an open door. Check one after deploying rather than assuming.
 
+## Fail closed
+
+**A static-only Worker trusts Access completely.** If the Access app is deleted
+while the public URL is on, the page is public at once, and a Worker with no code
+keeps no request log to say who loaded it. Measured on a real report: deleting the
+app in the dashboard while fixing a policy left it public for about 50 seconds,
+with no way to know whether anyone else saw it.
+
+Make the Worker check the Access token itself. Route every request through it and
+return 403 unless `Cf-Access-Jwt-Assertion` verifies:
+
+```jsonc
+// wrangler.jsonc
+"main": "src/index.ts",
+"assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+"vars": {
+  "ACCESS_AUD": "<the Access application's AUD tag>",
+  "ACCESS_TEAM": "https://<team>.cloudflareaccess.com"
+}
+```
+
+`references/fail-closed-worker.ts` is the Worker to use as `src/index.ts`. It
+verifies the RS256 signature against `<team>/cdn-cgi/access/certs`, the AUD tag,
+the issuer and expiry, refetches the keys once for an unknown key ID, and serves
+`ASSETS` only when all pass.
+
+- **A recreated Access app has a new AUD tag.** Update `ACCESS_AUD`, or everyone gets 403.
+- **Test the closed side locally**: no token, junk, a forged signature with an unknown key,
+  an unknown key ID and `alg: none` must all return 403. Those cases stop at the key lookup.
+  Once `ACCESS_TEAM` and `ACCESS_AUD` are filled, also send a forged signature with a real
+  key ID (the first `kid` from `<team>/cdn-cgi/access/certs`) and the real aud and iss. Only
+  that case reaches the signature check, and it must return 403 too. The open side needs a
+  real sign-in in a browser.
+- **Fix a policy by editing it, never by deleting the app.** If the app must be recreated,
+  turn the public URL off first.
+
 ## What you cannot automate, and how to find out fast
 
 **The Access bootstrap is dashboard-only.** Before it is done, every Access API
@@ -167,4 +203,5 @@ again.
 
 `references/api-recipes.md` carries exact request shapes for the Access application,
 Worker destination types, one-time PIN provider, and the wrangler config, plus
-the rollback commands.
+the rollback commands. `references/fail-closed-worker.ts` is the token-checking
+Worker from the Fail closed section.
