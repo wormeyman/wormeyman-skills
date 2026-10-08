@@ -88,17 +88,41 @@ def inventory_owners(run: Path) -> dict[str, str]:
         return {}
     inv = json.loads(f.read_text())
     found: dict[str, list[str]] = defaultdict(list)
-    for hook, callbacks in inv.get("hooks", {}).items():
-        for cb in callbacks:
+    for hook, callbacks in (inv.get("hooks") or {}).items():
+        for cb in callbacks or []:
+            if not isinstance(cb, dict):
+                continue
             if cb.get("owner") in ("core", "internal", "unknown", None):
                 continue  # core prints every enqueued script; the enqueuer is the real source
-            hosts = list(cb.get("prints", {}).get("domains", []))
-            hosts += [urlparse(src).hostname or "" for src in cb.get("enqueued", {}).values()]
-            where = f"{cb['owner']} ({hook})"
+            hosts = list((cb.get("prints") or {}).get("domains") or [])
+            for src in (cb.get("enqueued") or {}).values():
+                try:
+                    # Some values arrive JSON-escaped (https:\/\/host\/x.js); unescape before parsing.
+                    hosts.append(urlparse(str(src).replace("\\/", "/")).hostname or "")
+                except ValueError:
+                    continue  # a malformed URL names no host; skip it
+            where = f"{cb.get('owner')} ({hook})"
             for host in hosts:
                 if host and where not in found[reg_domain(host)]:
                     found[reg_domain(host)].append(where)
     return {d: "; ".join(w) for d, w in found.items()}
+
+
+def inventory_sections(run: Path) -> list[str]:
+    """Markdown lines for the options and consent-plugin tables in inventory.json."""
+    f = run / "inventory.json"
+    if not f.exists():
+        return []
+    inv = json.loads(f.read_text())
+    lines = ["\n## Tracker IDs stored in settings (probe inventory)\n"]
+    for opt, ids in sorted((inv.get("options") or {}).items()):
+        lines.append(f"- `{opt}`: " + ", ".join(f"{k} {', '.join(v or [])}" for k, v in (ids or {}).items()))
+    lines.append("\n## Consent plugins (probe inventory)\n")
+    for name, c in sorted((inv.get("consent_plugins") or {}).items()):
+        c = c or {}
+        state = "active" if c.get("active") else ("installed, inactive" if c.get("installed") else "not installed")
+        lines.append(f"- {name}: {state}; option names: {', '.join(c.get('option_names') or []) or 'none'}")
+    return lines
 
 
 def load(run: Path):
@@ -240,16 +264,8 @@ def main() -> None:
             r = summary[s][p]
             w(f"- {s}/{p}: {r['form_test']}; leaks: {r['canary_leaks'] or 'none'}")
 
-    inv_file = run / "inventory.json"
-    if inv_file.exists():
-        inv = json.loads(inv_file.read_text())
-        w("\n## Tracker IDs stored in settings (probe inventory)\n")
-        for opt, ids in sorted(inv.get("options", {}).items()):
-            w(f"- `{opt}`: " + ", ".join(f"{k} {', '.join(v)}" for k, v in ids.items()))
-        w("\n## Consent plugins (probe inventory)\n")
-        for name, c in sorted(inv.get("consent_plugins", {}).items()):
-            state = "active" if c["active"] else ("installed, inactive" if c["installed"] else "not installed")
-            w(f"- {name}: {state}; option names: {', '.join(c['option_names']) or 'none'}")
+    for line in inventory_sections(run):
+        w(line)
 
     text = "\n".join(out) + "\n"
     (run / "findings.md").write_text(text)
