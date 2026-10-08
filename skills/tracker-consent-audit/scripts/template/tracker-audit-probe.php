@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Tracker Audit Probe
- * Description: Inventory for a tracker and consent audit. Makes no changes itself; database writes by the hook code it runs are rolled back. Administrators only. Stops answering 48 hours after upload. Delete this file when the audit is done.
+ * Description: Inventory for a tracker and consent audit. Makes no changes itself; database writes by the hook code it runs are rolled back, with the exceptions its response lists. Administrators only. Stops answering 48 hours after upload. Delete this file when the audit is done.
  * Version: 1.0.0
  * Requires PHP: 8.0
  *
@@ -20,7 +20,9 @@ function tracker_audit_probe_age_hours(): float {
 }
 
 function tracker_audit_probe_expired(): bool {
-	return tracker_audit_probe_age_hours() > TRACKER_AUDIT_PROBE_HOURS;
+	// Fails closed: a file time in the future (clock skew, a copied timestamp) counts as expired too.
+	$age = tracker_audit_probe_age_hours();
+	return $age < 0 || $age > TRACKER_AUDIT_PROBE_HOURS;
 }
 
 add_action( 'admin_notices', function () {
@@ -39,6 +41,7 @@ add_action( 'rest_api_init', function () {
 	register_rest_route( 'tracker-audit/v1', '/inventory', array(
 		'methods'             => 'GET',
 		'callback'            => 'tracker_audit_probe_inventory',
+		'show_in_index'       => false,
 		'permission_callback' => function () {
 			if ( ! is_user_logged_in() ) {
 				return new WP_Error( 'rest_not_logged_in', 'Sign in with an administrator Application Password.', array( 'status' => 401 ) );
@@ -126,7 +129,7 @@ function tracker_audit_probe_describe( $callback ): array {
 		} else {
 			return array( 'name' => 'unknown', 'file' => '', 'owner' => 'unknown' );
 		}
-	} catch ( ReflectionException $e ) {
+	} catch ( Throwable $e ) {
 		return array( 'name' => 'unknown', 'file' => '', 'owner' => 'unknown' );
 	}
 	$file = (string) $ref->getFileName();
@@ -149,8 +152,9 @@ function tracker_audit_probe_run_hook( string $hook ): array {
 			$entry['priority'] = (int) $priority;
 			$before            = $wp_scripts instanceof WP_Scripts ? $wp_scripts->queue : array();
 			if ( ! headers_sent() ) {
-				// If a callback calls exit, this header names it in the cut-short response.
-				header( 'X-Tracker-Audit-Current: ' . preg_replace( '/[^\w:\\\\. -]/', '', $hook . ' ' . $entry['name'] ) );
+				// If a callback calls exit, this header names it and its owner in the cut-short response.
+				$current = preg_replace( '/[^\w:\\\\. -]/', '', $hook . ' ' . $entry['owner'] . ' ' . $entry['name'] );
+				header( 'X-Tracker-Audit-Current: ' . substr( (string) $current, 0, 200 ) );
 			}
 			$level = ob_get_level();
 			ob_start();
@@ -163,7 +167,14 @@ function tracker_audit_probe_run_hook( string $hook ): array {
 			}
 			$html = '';
 			while ( ob_get_level() > $level ) {
-				$html = ob_get_clean() . $html;
+				// A buffer that cannot be removed would spin forever; stop and say so.
+				$prev  = ob_get_level();
+				$chunk = ob_get_clean();
+				if ( false === $chunk || ob_get_level() >= $prev ) {
+					$entry['status'] = 'error: unremovable output buffer';
+					break;
+				}
+				$html = $chunk . $html;
 			}
 			$after = $wp_scripts instanceof WP_Scripts ? $wp_scripts->queue : array();
 			$added = array_values( array_diff( $after, $before ) );
@@ -249,7 +260,58 @@ function tracker_audit_probe_consent(): array {
 	return $out;
 }
 
+/** Keys ("priority|index") of the callbacks now on the shutdown hook. */
+function tracker_audit_probe_shutdown_keys(): array {
+	global $wp_filter;
+	$keys = array();
+	if ( ! empty( $wp_filter['shutdown'] ) ) {
+		foreach ( $wp_filter['shutdown']->callbacks as $priority => $callbacks ) {
+			foreach ( array_keys( $callbacks ) as $idx ) {
+				$keys[ $priority . '|' . $idx ] = true;
+			}
+		}
+	}
+	return $keys;
+}
+
+/**
+ * Remove shutdown callbacks added since $before was taken, so deferred writes
+ * cannot run after the rollback. Returns "owner name" for each one removed.
+ */
+function tracker_audit_probe_remove_new_shutdown( array $before ): array {
+	global $wp_filter;
+	$removed = array();
+	if ( empty( $wp_filter['shutdown'] ) ) {
+		return $removed;
+	}
+	foreach ( $wp_filter['shutdown']->callbacks as $priority => $callbacks ) {
+		foreach ( $callbacks as $idx => $cb ) {
+			if ( isset( $before[ $priority . '|' . $idx ] ) ) {
+				continue;
+			}
+			$d = tracker_audit_probe_describe( $cb['function'] );
+			remove_action( 'shutdown', $cb['function'], $priority );
+			$removed[] = $d['owner'] . ' ' . $d['name'];
+		}
+	}
+	return $removed;
+}
+
+/** Tables with this site's prefix that a ROLLBACK cannot undo (not InnoDB). */
+function tracker_audit_probe_non_innodb_tables(): array {
+	global $wpdb;
+	return array_values( (array) $wpdb->get_col( $wpdb->prepare(
+		"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME LIKE %s AND ( ENGINE IS NULL OR ENGINE <> 'InnoDB' )",
+		$wpdb->esc_like( $wpdb->prefix ) . '%'
+	) ) );
+}
+
 function tracker_audit_probe_inventory() {
+	// Keep this response out of page caches and proxies, before any other code runs.
+	nocache_headers();
+	if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+		define( 'DONOTCACHEPAGE', true );
+	}
 	if ( tracker_audit_probe_expired() ) {
 		return new WP_Error( 'tracker_audit_expired', 'This probe expired. Delete the file.', array( 'status' => 410 ) );
 	}
@@ -266,33 +328,40 @@ function tracker_audit_probe_inventory() {
 			'version' => $all[ $file ]['Version'] ?? '',
 		);
 	}
-	$options = tracker_audit_probe_options();
-	$consent = tracker_audit_probe_consent();
+	$options    = tracker_audit_probe_options();
+	$consent    = tracker_audit_probe_consent();
+	$non_innodb = tracker_audit_probe_non_innodb_tables();
+	$db_dropin  = file_exists( WP_CONTENT_DIR . '/db.php' );
 
-	// Render as an anonymous visitor: no admin bar, no admin name, the markup visitors get.
-	wp_set_current_user( 0 );
-	// Other plugins' head and footer code can write to the database (view counters,
-	// stats logs). Run it inside a transaction and roll back, so no rows stay behind.
+	// Other plugins' code can write to the database (view counters, stats logs), even
+	// on set_current_user. Run all of it inside a transaction and roll back, so no rows
+	// stay behind. If the transaction cannot start, run nothing.
 	// If a callback exits, the connection closes and MySQL rolls back on its own.
-	// This cannot undo file writes, cache writes, outbound requests or writes to
-	// non-InnoDB tables, and DDL statements commit implicitly.
+	// The limits text in the response lists what a rollback cannot undo.
 	global $wpdb;
-	$wpdb->query( 'START TRANSACTION' );
-	$hooks = array();
+	if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+		return new WP_Error( 'tracker_audit_no_transaction', 'Could not start a database transaction, so no plugin code was run.', array( 'status' => 500 ) );
+	}
+	$shutdown_before = tracker_audit_probe_shutdown_keys();
+	$removed         = array();
+	$hooks           = array();
 	try {
+		// Render as an anonymous visitor: no admin bar, no admin name, the markup visitors get.
+		wp_set_current_user( 0 );
 		foreach ( array( 'wp_enqueue_scripts', 'wp_head', 'wp_body_open', 'wp_footer' ) as $hook ) {
 			$hooks[ $hook ] = tracker_audit_probe_run_hook( $hook );
 		}
 	} finally {
+		$removed = tracker_audit_probe_remove_new_shutdown( $shutdown_before );
 		$wpdb->query( 'ROLLBACK' );
 	}
 
 	$response = new WP_REST_Response( array(
-		'probe'           => array(
+		'probe'                      => array(
 			'version'          => TRACKER_AUDIT_PROBE_VERSION,
 			'expires_in_hours' => (int) max( 0, TRACKER_AUDIT_PROBE_HOURS - tracker_audit_probe_age_hours() ),
 		),
-		'site'            => array(
+		'site'                       => array(
 			'home'      => home_url(),
 			'wordpress' => get_bloginfo( 'version' ),
 			'php'       => PHP_VERSION,
@@ -303,12 +372,15 @@ function tracker_audit_probe_inventory() {
 				'parent'  => $theme->parent() ? $theme->parent()->get_stylesheet() : null,
 			),
 		),
-		'plugins'         => $plugins,
-		'mu_plugins'      => array_keys( get_mu_plugins() ),
-		'hooks'           => $hooks,
-		'options'         => $options,
-		'consent_plugins' => $consent,
-		'limits'          => 'Collected during a REST request, not a page view. Anything a plugin adds only on certain pages may be missing. The browser audit shows what visitors get. Database writes made by the hook code were rolled back; file writes, cache writes and outbound requests by that code were not.',
+		'plugins'                    => $plugins,
+		'mu_plugins'                 => array_keys( get_mu_plugins() ),
+		'hooks'                      => $hooks,
+		'options'                    => $options,
+		'consent_plugins'            => $consent,
+		'removed_shutdown_callbacks' => $removed,
+		'non_innodb_tables'          => $non_innodb,
+		'db_dropin'                  => $db_dropin,
+		'limits'                     => 'Collected during a REST request, not a page view. Anything a plugin adds only on certain pages may be missing. The browser audit shows what visitors get. Database writes made by the hook code were rolled back, with these exceptions: writes to the tables in non_innodb_tables, DDL statements (they commit on their own), code that commits its own transaction, persistent object caches, and any database layer that db_dropin points to. Shutdown callbacks the hook code added were removed without running and are listed in removed_shutdown_callbacks; PHP shutdown functions registered outside WordPress hooks cannot be removed. File writes and outbound requests by that code were not undone. A plugin that cached the administrator\'s data at init, before the probe switched to an anonymous visitor, may still print it in an excerpt.',
 	) );
 	$response->header( 'Cache-Control', 'no-store' );
 	return $response;

@@ -5,7 +5,7 @@
 
 Usage: uv run tests/probe/check_probe.py http://127.0.0.1:8781 \
          --admin-pass '<app password>' --subscriber-pass '<app password>' \
-         [--cafile <CA bundle for an https site with a private CA>]
+         [--expect ok|exit|closure-exit|expired] [--cafile <extra CA root for an https site with a private CA>]
 """
 
 import argparse
@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 
 ROUTE = "/wp-json/tracker-audit/v1/inventory"
-CTX: ssl.SSLContext | None = None  # set in main(); --cafile adds a private CA, certificate checks are never disabled
+CTX: ssl.SSLContext | None = None  # set in main(); --cafile adds a private CA root, certificate checks are never disabled
 SECRETS = ("fixture-subscriber@example.com", "fixture-comment-secret", "fixture-commenter@example.com",
            "fixture-admin@example.com", "<script>gtag")  # the raw option value, not its matched ID
 
@@ -39,11 +39,14 @@ def main() -> int:
     ap.add_argument("site")
     ap.add_argument("--admin-pass", required=True)
     ap.add_argument("--subscriber-pass", required=True)
-    ap.add_argument("--expect", choices=("ok", "expired", "exit"), default="ok")
-    ap.add_argument("--cafile", default=None, help="CA bundle for an https site; omit for http or a publicly trusted certificate")
+    ap.add_argument("--expect", choices=("ok", "expired", "exit", "closure-exit"), default="ok")
+    ap.add_argument("--cafile", default=None, help="extra CA root to trust for an https site; omit for http or a publicly trusted certificate")
     a = ap.parse_args()
     global CTX
-    CTX = ssl.create_default_context(cafile=a.cafile) if a.cafile else ssl.create_default_context()
+    # --cafile ADDS a root to the system roots, like fetch_inventory.py; it never replaces them.
+    CTX = ssl.create_default_context()
+    if a.cafile:
+        CTX.load_verify_locations(a.cafile)
     fails = []
 
     status, _, _ = get(a.site)
@@ -57,18 +60,24 @@ def main() -> int:
     if a.expect == "expired":
         if status != 410:
             fails.append(f"aged file: expected 410, got {status}")
-    elif a.expect == "exit":
+    elif a.expect in ("exit", "closure-exit"):
         current = headers.get("X-Tracker-Audit-Current", "")
-        if "wp_footer" not in current:
-            fails.append(f"exit: expected X-Tracker-Audit-Current naming wp_footer, got {current!r}")
+        if a.expect == "exit":
+            if "wp_footer" not in current or "plugin:fixture-tracker" not in current:
+                fails.append(f"exit: expected X-Tracker-Audit-Current naming wp_footer and plugin:fixture-tracker, got {current!r}")
+            marker = "partial"
+        else:
+            if "wp_footer plugin:fixture-tracker closure" not in current:
+                fails.append(f"closure-exit: expected X-Tracker-Audit-Current with 'wp_footer plugin:fixture-tracker closure', got {current!r}")
+            marker = "closure-partial"
         try:
             is_inventory = "hooks" in json.loads(body)
         except (ValueError, TypeError):
             is_inventory = False
         if is_inventory:
-            fails.append("exit: got the full JSON inventory, so nothing exited")
-        if "partial" not in body:
-            fails.append(f"exit: body lacks the fixture's 'partial' output: {body[:200]!r}")
+            fails.append(f"{a.expect}: got the full JSON inventory, so nothing exited")
+        if marker not in body:
+            fails.append(f"{a.expect}: body lacks the fixture's {marker!r} output: {body[:200]!r}")
     else:
         if status != 200:
             fails.append(f"admin: expected 200, got {status}: {body[:200]}")
@@ -88,6 +97,11 @@ def main() -> int:
             foot = [c for c in inv["hooks"]["wp_footer"] if "fixture-wrote" in c.get("prints", {}).get("excerpt", "")]
             if not foot or foot[0]["owner"] != "plugin:fixture-tracker" or foot[0]["status"] != "ok":
                 fails.append(f"fixture wp_footer entry (write ran inside this request) missing or not ok: {foot}")
+            if not inv.get("removed_shutdown_callbacks"):
+                fails.append(f"the fixture's shutdown write was not removed: {inv.get('removed_shutdown_callbacks')!r}")
+            for key in ("non_innodb_tables", "db_dropin"):
+                if key not in inv:
+                    fails.append(f"response lacks {key!r}")
             leaked = [s for s in SECRETS if s in body]
             if leaked:
                 fails.append(f"private data in the response: {leaked}")
