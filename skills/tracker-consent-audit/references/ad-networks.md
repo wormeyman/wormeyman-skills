@@ -29,7 +29,9 @@ claims and the blogger's own tools as two separate lists.
 
 ## 4. Reading GPP and us_privacy
 
-`gpc_probe.py` prints the strings it finds for the plain run and the GPC run.
+`gpc_probe.py` prints counts. It writes the decoded strings and the unparsed list
+to `gpc-probe.json`, under the keys `gpp_plain`, `gpp_gpc`, `usp_plain`,
+`usp_gpc`, `unparsed_plain` and `unparsed_gpc`.
 
 - **`us_privacy`** has four characters: version, notice given, opted out of sale,
   and a legal agreement flag. `1YNY` means not opted out. `1YYY` means opted out.

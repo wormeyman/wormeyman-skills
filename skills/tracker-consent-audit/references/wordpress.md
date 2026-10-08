@@ -44,15 +44,23 @@ read the site's real head and footer output and its active plugins and options.
   password does not expire. It is a full admin login until someone revokes it.
 - **Admin notice.** While it is installed, the probe shows a notice in the
   dashboard, so no one forgets it is there.
-- **What it returns.** The head and footer output, active plugins, and the names
-  and values of options that hold tracker IDs or scripts.
-- **What it never returns.** User data, post content, passwords or keys.
+- **What it returns.** WordPress and PHP versions. The theme and parent theme
+  (slug, name, version). Active plugins with versions. The file names of
+  must-use plugins. Every head, footer, body-open and enqueue callback, with its
+  file and owner. The third-party hosts and tracker IDs in what each callback
+  prints. Enqueued script URLs. The first 300 characters of each callback's
+  printed markup, which is the same markup any visitor sees in the page source.
+  Option names with the tracker IDs they matched. Consent plugins' option names.
+- **What it never returns.** Users, comments, subscribers, form entries, or
+  option values beyond the matched tracker IDs. The markup excerpt is not
+  filtered for secrets, so treat the output as you would page source.
 - **Changes.** The probe makes no changes itself. It rolls back database writes
   made by the head and footer code it runs. It cannot undo file writes, cache
   writes, outbound requests, writes to non-InnoDB tables or DDL. WordPress records
   when the Application Password was last used.
-- **A limit.** It reproduces a front-page request. Code that only runs on other
-  REST requests or in the admin is not seen. Say so in the report.
+- **A limit.** It runs the head and footer hooks during a REST request, not a
+  page view. Code that depends on which page is shown (the front page, a single
+  post) may be missing. The browser audit shows what visitors actually get.
 - **A callback that calls `exit`.** It ends the response early. The script then
   names the callback, from the `X-Tracker-Audit-Current` header.
 - **Pretty permalinks off.** `/wp-json/` gives a 404. The script retries with
