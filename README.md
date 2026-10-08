@@ -19,6 +19,7 @@ number of other agent tools.
 | [`refactoring`](skills/refactoring) | Decides whether code is worth refactoring, from git history and the real test safety net |
 | [`sandboxed-execution`](skills/sandboxed-execution) | Picks a sandbox for code you do not trust, and proves it holds before running anything |
 | [`session-handoff`](skills/session-handoff) | Writes a self-contained prompt so a fresh session can pick up the work |
+| [`tracker-consent-audit`](skills/tracker-consent-audit) | Measures what a WordPress food blog sends before visitors agree, and who put each tracker there |
 
 The design notes under [Skills](#skills) explain why each one is built the way
 it is.
@@ -46,7 +47,7 @@ pulls in later changes.
 /plugin install wormeyman-skills@wormeyman
 ```
 
-This installs all eight. Plugin skills carry the plugin's name, so you invoke
+This installs all nine. Plugin skills carry the plugin's name, so you invoke
 `/wormeyman-skills:refactoring`. Run `/plugin marketplace update wormeyman` for
 later changes, or turn on auto-update for the marketplace in `/plugin`.
 
@@ -417,6 +418,41 @@ command, and a site whose only deploy instructions were in its docs.
 The catalog was built from every Cloudflare `llms.txt` index and the changelog
 on 2026-09-25, and it will go stale. The skill says so at the top and explains
 how to refresh it.
+
+### [`tracker-consent-audit`](skills/tracker-consent-audit)
+
+Measures what a WordPress food blog sends to ad and analytics companies before a
+visitor agrees to anything, and names the plugin, theme or setting that put each
+tracker there. It ends in a report the site owner can read.
+
+**It uses a real browser, not a plugin list.** A list of installed plugins says
+what could run. A browser says what did. Consent plugins are often installed but
+inert, their banner buttons do nothing, or the site ignores the Global Privacy
+Control signal on the server. None of that shows in a list. Only loading the
+page, with and without a consent choice, and watching the requests shows it.
+
+**It scaffolds a folder per client.** A re-test is only worth something if it
+runs the same code as the first test. So the skill copies a template into a new
+folder for each site, and every later run uses that copy. The numbers from two
+months apart then mean the same thing.
+
+**It uses a self-expiring probe, not a database export.** The probe is a small
+plugin that stops working after a short time. It makes no changes itself. It
+runs the site's own head and footer code, rolls back any database writes that
+code makes, and answers only with tracker IDs it matched. It never returns
+users, comments, subscribers or option values beyond those matches. So no
+personal data leaves the site. It also names the hook that prints each tracker,
+which an export cannot do. It has limits. It cannot undo file writes, cache
+writes or outbound requests that the site's code makes while it runs, and the
+skill says so before you install it. The report Worker fails closed: it checks
+the Access token itself, so a deleted Access app means 403, not a public report.
+
+**It runs in containers.** Chrome and a virtual display run in a container, so
+the host stays clean. Any database copy lives in a container too, which makes it
+easy to delete completely when the work is done.
+
+Not built yet: canaries in every input type, more session recorders, cookie-write
+stack traces, and a consent-withdrawal test.
 
 ## A note on writing skills
 
