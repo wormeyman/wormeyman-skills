@@ -17,12 +17,14 @@ these places.
   no browser run sees it. The Microsoft Clarity plugin (seen in version 0.10.35)
   logs every GET request outside wp-admin on `shutdown`, REST calls included:
   the visitor's IP address, user agent and URL. It stores them in its
-  `clarity_collect_events` table. About every 5 minutes, when the site gets a
-  visit, a WP-Cron job removes them and posts them to `ai.clarity.ms/collect`.
-  It does not check consent or GPC first. To spot it, the probe's plugin list
-  gives the version. On an export or a local copy, look for rows in
-  `<prefix>clarity_collect_events`. On a live site that table is often empty,
-  because the cron job drains it.
+  `clarity_collect_events` table. A WP-Cron job removes them and posts them to
+  `ai.clarity.ms/collect` in batches. The code asks for every 5 minutes, but
+  WP-Cron runs only when a request reaches WordPress, so on a cached site the
+  gaps are longer: one export held 15 requests from about 5 hours. It does not
+  check consent or GPC first. To spot it, the probe's plugin list gives the
+  version. On an export or a local copy, look for rows in
+  `<prefix>clarity_collect_events`. The table holds only the requests since the
+  last send.
 - **Hosting.** Some hosts add analytics for you. Pressable adds Gauges. Some sites
   turn on Cloudflare Web Analytics at the edge, with no plugin at all.
 
@@ -134,23 +136,36 @@ podman's API can copy files into a container, but on a rootless podman where
 that call fails (measured on podman 6.1.3), DDEV does not start. Bind mounts
 avoid that path.
 
-1. Make a folder for the copy, and a network: `podman network create audit-net`.
-2. Start `mariadb:10.6` on that network with a database, user and password.
-3. Start `wordpress:php8.3-apache` on the same network, with the folder's docroot
-   bind-mounted. Run `wordpress:cli` against the same mount for WP-CLI, with
-   `--user 0:0` so it can write to `wp-content`. Use `wp --allow-root`. That
-   image's MariaDB client insists on TLS, so `wp db query` fails. Run SQL with
-   `podman exec <db container> mariadb` instead.
-4. Install All-in-One WP Migration and a paid extension **before** you block
-   outbound requests. The free plugin (measured on 7.112) refuses
-   `wp ai1wm restore`. The Unlimited Extension works, and so does a storage
-   extension such as Google Drive. The plugin and its extension both download and check themselves online. Get the extension from the client or
-   from Eric. Do not copy any purchase link into a repo or a report.
-5. Set `WP_HTTP_BLOCK_EXTERNAL` and `DISABLE_WP_CRON` to `true` in `wp-config.php`.
-   Now the copy cannot call live services or run the client's scheduled jobs.
-   Check the imported plugin list too: a copied database turns back on plugins
-   that talk to backups, CDNs and ad services.
-6. Run `wp ai1wm restore` on the backup file.
-7. Clean up when done: `podman rm --force --volumes` on both containers, then
+Keep every container off the internet. `WP_HTTP_BLOCK_EXTERNAL` only stops
+WordPress's own web functions. A plugin that opens its own connection (PHP's
+curl, `file_get_contents`) skips it, and a restored copy runs plugins that talk
+to ad, analytics and CDN services. An internal podman network cuts the
+containers off, while a port published on 127.0.0.1 still answers.
+
+1. Make a folder for the copy, and an internal network:
+   `podman network create --internal audit-net`.
+2. Download the free All-in-One WP Migration zip from wordpress.org on the host,
+   and get a paid extension zip from the client or from Eric. The free plugin
+   (measured on 7.112) refuses `wp ai1wm restore`. The Unlimited Extension
+   works, and so does a storage extension such as Google Drive. Do not copy any
+   purchase link into a repo or a report.
+3. Start `mariadb:10.6` on that network with a database, user and password.
+4. Start `wordpress:php8.3-apache` on the same network, with the folder's docroot
+   bind-mounted and `-p 127.0.0.1:<port>:80`. Run `wordpress:cli` against the
+   same mount for WP-CLI, with `--user 0:0` so it can write to `wp-content`. Use
+   `wp --allow-root`. That image's MariaDB client insists on TLS, so `wp db query`
+   fails. Run SQL with `podman exec <db container> mariadb` instead.
+5. Install WordPress, then both plugins from their zip files (mount the zips into
+   the WP-CLI container). This works with no internet: measured with the Google
+   Drive extension, through backup and restore.
+6. Set `WP_HTTP_BLOCK_EXTERNAL` and `DISABLE_WP_CRON` to `true` in `wp-config.php`
+   as well. They stop WordPress from trying, and they stop the client's
+   scheduled jobs. Check the imported plugin list too: a copied database turns
+   back on plugins that talk to backups, CDNs and ad services.
+7. Run `wp ai1wm restore` on the backup file.
+8. Check the cut-off before you load anything: from inside the web container,
+   `curl https://1.1.1.1/` must fail with exit code 7.
+9. Clean up when done: `podman rm --force --volumes` on every container, the
+   WP-CLI ones too, since that image declares a volume. Then
    `podman network rm audit-net`, then delete the folder. Run `podman volume ls`
    to check.
