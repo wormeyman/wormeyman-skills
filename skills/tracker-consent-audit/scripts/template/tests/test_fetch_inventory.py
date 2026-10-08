@@ -71,6 +71,12 @@ def test_cut_short_names_the_callback(tmp_path, site, capsys):
     assert "wp_footer my_plugin_fn" in capsys.readouterr().out
 
 
+def test_fatal_500_names_the_callback(tmp_path, site, capsys):
+    ROUTES["/wp-json/tracker-audit/v1/inventory"] = (500, {"X-Tracker-Audit-Current": "wp_head broken_fn"}, b"<html>fatal</html>")
+    assert run(tmp_path, site) == 1
+    assert "wp_head broken_fn" in capsys.readouterr().out
+
+
 def test_missing_password(tmp_path, site, monkeypatch, capsys):
     monkeypatch.delenv("TRACKER_AUDIT_APP_PASSWORD")
     assert run(tmp_path, site) == 2  # pytest's stdin is not a terminal, so no prompt

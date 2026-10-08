@@ -50,12 +50,20 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None  # urllib then raises HTTPError with the 3xx status
 
 
+def _ssl_context(cafile: str | None) -> ssl.SSLContext:
+    # --cafile ADDS a root to the system roots; passing it to create_default_context would replace them.
+    ctx = ssl.create_default_context()
+    if cafile:
+        ctx.load_verify_locations(cafile)
+    return ctx
+
+
 def fetch(url: str, user: str, password: str, cafile: str | None):
     token = base64.b64encode(f"{user}:{password}".encode()).decode()
     req = urllib.request.Request(url, headers={
         "Authorization": f"Basic {token}", "Accept": "application/json", "User-Agent": "tracker-consent-audit/1.0",
     })
-    ctx = ssl.create_default_context(cafile=cafile) if cafile else ssl.create_default_context()
+    ctx = _ssl_context(cafile)
     opener = urllib.request.build_opener(NoRedirect, urllib.request.HTTPSHandler(context=ctx))
     try:
         with opener.open(req, timeout=180) as r:
@@ -97,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if status != 200:
         print(f"HTTP {status}: {HINTS.get(status, body[:300].decode(errors='replace'))}")
+        if "X-Tracker-Audit-Current" in headers:  # a PHP fatal in a callback returns 500 with this header
+            print(f"The last callback the probe ran was: {headers['X-Tracker-Audit-Current']}")
         return 1
     try:
         data = json.loads(body)
