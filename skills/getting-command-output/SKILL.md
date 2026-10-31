@@ -25,7 +25,19 @@ tmux send-keys -t <session>:<name> Enter
 - Tell the user the window number (`-P` prints it) and the prompts they will see, in order.
 - Wait in the background: `timeout 1800 bash -c 'until grep -q "Script done" "$0"; do sleep 2; done' "$LOG"`.
 - Read it: `sed 's/\x1b\[[0-9;?]*[A-Za-z]//g; s/\r//g' "$LOG"`. The last line has `COMMAND_EXIT_CODE`.
-- Then `tmux kill-window -t <session>:<name>`. Never type into a window running an agent.
+- **Ask before closing the window.** The user may still be reading it. Once they say yes, `tmux kill-window -t <session>:<name>`. Never type into a window running an agent.
+
+**More than one command:** put them in a bash script file and send `script ... --command 'bash <file>'`. A chain typed inline is parsed by the user's shell, and one exit code for the whole chain hides which step failed. Print a numbered step name before each step and its exit code after, so the user can follow along and the log shows where it stopped:
+
+```bash
+echo '==> [1/3] Back up the LUKS header'
+sudo cryptsetup luksHeaderBackup ...
+rc=$?; echo "<== [1/3] exit $rc"; [ $rc -eq 0 ] || exit $rc
+echo '==> [2/3] Enroll the TPM2 chip'
+...
+```
+
+Stop on a failure when later steps depend on it, as above. Otherwise drop the `|| exit` part.
 
 **On macOS** `script` is the BSD one and rejects those flags (`illegal option -- -`). Send `script -F $LOG sh -c '<command>'` instead, with no `-q`, so it still writes `Script done` for the wait. The last lines read `Command exit status: N`.
 
@@ -39,6 +51,12 @@ Use Tailscale's Taildrop. Give the user one line that saves output and exit code
 
 ```
 begin; <cmd1>; echo "exit: $status"; <cmd2>; echo "exit: $status"; end &> ~/Downloads/<name>.txt; tailscale file cp ~/Downloads/<name>.txt <your-host>:
+```
+
+With more than one command, number the steps here too. `&>` sends everything to the file, so pipe each step line through `tee /dev/tty` to show it on screen as well:
+
+```
+begin; echo '==> [1/2] FileVault status' | tee /dev/tty; <cmd1>; echo "<== [1/2] exit $status" | tee /dev/tty; echo '==> [2/2] APFS volumes' | tee /dev/tty; <cmd2>; echo "<== [2/2] exit $status" | tee /dev/tty; end &> ~/Downloads/<name>.txt; tailscale file cp ~/Downloads/<name>.txt <your-host>:
 ```
 
 In bash or zsh, use `{ ...; } &> file` and `$?`. On a Mac the CLI may only exist at `/Applications/Tailscale.app/Contents/MacOS/Tailscale`. sudo's prompt still shows on screen.
@@ -60,7 +78,7 @@ This needs no sudo if the user is already tailscale's operator. Don't make them 
 Passphrases typed at a prompt don't echo, so they never reach the log. A command that **prints** a secret (`systemd-cryptenroll --recovery-key`, a private key) must not run under `script`:
 
 - Run it plainly in its own window, followed on the same line by writing its exit code to the log, a check that prints no secret (for example the key slot list), and `sudo --reset-timestamp` last, so the window can't be reused as root.
-- Never `capture-pane` that window. Once the user says the secret is saved, run `tmux clear-history -t <session>:<name>` and kill the window.
+- Never `capture-pane` that window. Once the user says the secret is saved, run `tmux clear-history -t <session>:<name>`, then ask before you kill the window.
 
 ## Common mistakes
 
@@ -71,4 +89,6 @@ Passphrases typed at a prompt don't echo, so they never reach the log. A command
 | `cmd \| tee log` | `script --command cmd log` |
 | A wait loop with no timeout | `timeout 1800 ...` |
 | Letting a reboot wipe an unread log | Read it first, or `journalctl -b -1` |
-| Leaving finished windows or sent copies | `kill-window`; delete the copies once read |
+| Several steps chained inline, with no step lines | A bash script file with `==> [n/N]` and `<== [n/N] exit` lines |
+| Killing a window without asking | Ask first; the user may still be reading it |
+| Leaving sent copies behind | Delete them once read |
