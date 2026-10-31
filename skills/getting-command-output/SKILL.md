@@ -21,15 +21,17 @@ tmux send-keys -t <session>:<name> Enter
 ```
 
 - The text is typed into the user's shell, so match its syntax. Keep `<command>` free of single quotes, or put it in a script file.
-- **Press Enter yourself only when a prompt is certain to appear:** a passphrase prompt, or a command that starts with `sudo --reset-timestamp`, which makes sudo ask even when it has a cached login. Typing the password is the user's OK. For anything else, send it without Enter and ask them to press it.
-- Tell the user the window number (`-P` prints it) and the prompts they will see, in order.
+- **Press Enter yourself only when a prompt is certain to appear,** before anything else runs. Typing the password is the user's OK, so a command that runs without one has had no OK. That means a passphrase prompt, a command that starts with `sudo --reset-timestamp`, or a script file that starts with the sudo lines below. For sudo, first run `sudo --non-interactive --reset-timestamp --validate` in your own shell on that machine. It never prompts. Only exit 1 with `a password is required` makes the prompt certain. If it succeeds, sudo needs no password there (live USBs often don't), so send the command without Enter and ask the user to press it.
+- Tell the user the window number (`-P` prints it), the steps it will run, and the prompts they will see, in order.
 - Wait in the background: `timeout 1800 bash -c 'until grep -q "Script done" "$0"; do sleep 2; done' "$LOG"`.
 - Read it: `sed 's/\x1b\[[0-9;?]*[A-Za-z]//g; s/\r//g' "$LOG"`. The last line has `COMMAND_EXIT_CODE`.
 - **Ask before closing the window.** The user may still be reading it. Once they say yes, `tmux kill-window -t <session>:<name>`. Never type into a window running an agent.
 
-**More than one command:** put them in a bash script file and send `script ... --command 'bash <file>'`. A chain typed inline is parsed by the user's shell, and one exit code for the whole chain hides which step failed. Print a numbered step name before each step and its exit code after, so the user can follow along and the log shows where it stopped:
+**More than one command:** put them in a bash script file and send `script ... --command 'bash <file>'`. Keep the file in the mode 700 directory next to the log, since its steps run as root. A chain typed inline is parsed by the user's shell, and one exit code for the whole chain hides which step failed. Print a numbered step name before each step and its exit code after, so the user can follow along and the log shows where it stopped:
 
 ```bash
+trap 'sudo --reset-timestamp' EXIT
+sudo --reset-timestamp; sudo --validate || exit 1
 echo '==> [1/3] Back up the LUKS header'
 sudo cryptsetup luksHeaderBackup ...
 rc=$?; echo "<== [1/3] exit $rc"; [ $rc -eq 0 ] || exit $rc
@@ -38,6 +40,8 @@ echo '==> [2/3] Enroll the TPM2 chip'
 ```
 
 Stop on a failure when later steps depend on it, as above. Otherwise drop the `|| exit` part.
+
+**sudo prompts:** `sudo --reset-timestamp <cmd>` always asks and does not save the login, so every later `sudo` asks again. The two lines at the top give one prompt instead: drop any saved login, then ask once with `--validate`, and use plain `sudo` for the steps. A step that runs longer than sudo's timeout (often 5 minutes) makes the next `sudo` ask again, so tell the user "once, and again after a long step". Never keep the login alive with a `sudo --validate` loop. The `trap` drops the login on every exit, failures included, so no saved root login outlives the script. Keep these lines even where sudo needs no password; they cost nothing.
 
 **On macOS** `script` is the BSD one and rejects those flags (`illegal option -- -`). Send `script -F $LOG sh -c '<command>'` instead, with no `-q`, so it still writes `Script done` for the wait. The last lines read `Command exit status: N`.
 
@@ -90,5 +94,7 @@ Passphrases typed at a prompt don't echo, so they never reach the log. A command
 | A wait loop with no timeout | `timeout 1800 ...` |
 | Letting a reboot wipe an unread log | Read it first, or `journalctl -b -1` |
 | Several steps chained inline, with no step lines | A bash script file with `==> [n/N]` and `<== [n/N] exit` lines |
+| Pressing Enter on sudo without checking | `sudo --non-interactive --reset-timestamp --validate` must say `a password is required` |
+| `sudo --reset-timestamp` on each step | Reset once, `sudo --validate`, then plain `sudo` |
 | Killing a window without asking | Ask first; the user may still be reading it |
 | Leaving sent copies behind | Delete them once read |
