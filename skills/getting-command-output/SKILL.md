@@ -27,7 +27,9 @@ tmux send-keys -t <session>:<name> Enter
 - Read it: `sed 's/\x1b\[[0-9;?]*[A-Za-z]//g; s/\r//g' "$LOG"`. The last line has `COMMAND_EXIT_CODE`.
 - Then `tmux kill-window -t <session>:<name>`. Never type into a window running an agent.
 
-Use `script` (util-linux), not `tee`: prompts, progress bars and `[Y/n]` keep working, and stderr and the exit code land in the log.
+**On macOS** `script` is the BSD one and rejects those flags (`illegal option -- -`). Send `script -F $LOG sh -c '<command>'` instead, with no `-q`, so it still writes `Script done` for the wait. The last lines read `Command exit status: N`.
+
+Use `script`, not `tee`: prompts, progress bars and `[Y/n]` keep working, and stderr and the exit code land in the log.
 
 **Reboots:** a scratch dir in `/tmp` does not survive one. If the step ends in a reboot, tell the user to wait until you have read the log. After a reboot, read the last boot with `journalctl -b -1`.
 
