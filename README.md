@@ -15,6 +15,7 @@ number of other agent tools.
 | [`asking-for-decisions`](skills/asking-for-decisions) | Puts a decision to you as a prompt with real options, not as a question buried in prose |
 | [`cloudflare-migration-sweep`](skills/cloudflare-migration-sweep) | Finds every repo you can reach that still needs a Cloudflare migration or deprecation fix |
 | [`dependency-audit`](skills/dependency-audit) | Decides what to update, remove or replace, and whether a new major is worth it here |
+| [`getting-command-output`](skills/getting-command-output) | Runs commands that need your password in a logged tmux window, and gets results back from other machines by Taildrop, so you never paste output |
 | [`publishing-behind-cloudflare-access`](skills/publishing-behind-cloudflare-access) | Puts a login in front of a static page, in an order that never leaves it public |
 | [`refactoring`](skills/refactoring) | Decides whether code is worth refactoring, from git history and the real test safety net |
 | [`sandboxed-execution`](skills/sandboxed-execution) | Picks a sandbox for code you do not trust, and proves it holds before running anything |
@@ -47,7 +48,7 @@ pulls in later changes.
 /plugin install wormeyman-skills@wormeyman
 ```
 
-This installs all nine. Plugin skills carry the plugin's name, so you invoke
+This installs all ten. Plugin skills carry the plugin's name, so you invoke
 `/wormeyman-skills:refactoring`. Run `/plugin marketplace update wormeyman` for
 later changes, or turn on auto-update for the marketplace in `/plugin`.
 
@@ -457,6 +458,34 @@ easy to delete completely when the work is done.
 
 Not built yet: canaries in every input type, more session recorders, cookie-write
 stack traces, and a consent-withdrawal test.
+
+### [`getting-command-output`](skills/getting-command-output)
+
+Run commands that need the user's hands without ever asking them to paste the
+output back. On the agent's own machine the command runs in a new tmux window
+inside `script`, which logs everything to a file the agent reads. On a machine
+the agent can't reach, a one-line command saves the output and sends it back
+over Tailscale's Taildrop.
+
+It came out of a long night encrypting a Linux box, where nearly every step
+needed `sudo` and the agent kept opening logged tmux windows rather than asking
+for a paste. To check that the habit was not just luck, I gave a fresh agent,
+with the same `CLAUDE.md`, two tasks: run a `sudo` script, and check FileVault on
+a Mac it could not reach. It handled the first well, but used `tee`, which
+changes how prompts and progress bars behave. For the Mac it wrote a command
+that copied the result to the clipboard "so just paste it back here", and
+mentioned Taildrop only as a fallback for long output. That second answer is the
+exact habit the skill exists to break.
+
+With the skill loaded, the same tasks came back with `script`, a Taildrop round
+trip, and the recovery-key command run outside the logger because it prints a
+secret. The test agent also listed eight gaps it had to guess at, and most of
+them are now in the file: printing the window number, a timeout on the wait,
+logs in `/tmp` that a reboot wipes, and keeping a secret out of tmux's
+scrollback.
+
+Like `asking-for-decisions`, the trigger lives in `CLAUDE.md` ("never ask me to
+paste output"), and this file is the how.
 
 ## A note on writing skills
 
