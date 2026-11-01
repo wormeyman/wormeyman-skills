@@ -16,6 +16,7 @@ number of other agent tools.
 | [`cloudflare-migration-sweep`](skills/cloudflare-migration-sweep) | Finds every repo you can reach that still needs a Cloudflare migration or deprecation fix |
 | [`dependency-audit`](skills/dependency-audit) | Decides what to update, remove or replace, and whether a new major is worth it here |
 | [`getting-command-output`](skills/getting-command-output) | Runs commands that need your password in a logged tmux window, and gets results back from other machines by Taildrop, so you never paste output |
+| [`passing-json-between-agents`](skills/passing-json-between-agents) | Hands data to another agent as plain JSON with its field notes inside, checked with a real parser |
 | [`publishing-behind-cloudflare-access`](skills/publishing-behind-cloudflare-access) | Puts a login in front of a static page, in an order that never leaves it public |
 | [`refactoring`](skills/refactoring) | Decides whether code is worth refactoring, from git history and the real test safety net |
 | [`sandboxed-execution`](skills/sandboxed-execution) | Picks a sandbox for code you do not trust, and proves it holds before running anything |
@@ -48,7 +49,7 @@ pulls in later changes.
 /plugin install wormeyman-skills@wormeyman
 ```
 
-This installs all ten. Plugin skills carry the plugin's name, so you invoke
+This installs all eleven. Plugin skills carry the plugin's name, so you invoke
 `/wormeyman-skills:refactoring`. Run `/plugin marketplace update wormeyman` for
 later changes, or turn on auto-update for the marketplace in `/plugin`.
 
@@ -486,6 +487,29 @@ scrollback.
 
 Like `asking-for-decisions`, the trigger lives in `CLAUDE.md` ("never ask me to
 paste output"), and this file is the how.
+
+### [`passing-json-between-agents`](skills/passing-json-between-agents)
+
+Hand data to another agent as a plain `.json` file, with the notes on each
+field stored as text inside it, in an `about` string and a `field_notes`
+object. The agent on the other end has none of your context, so the file has
+to explain itself.
+
+It came out of passing Medicare plan figures to the Claude PowerPoint agent.
+Asked to put the field notes in as comments, I wrote a `.jsonc` file. The
+upload box refused it ("File type '.jsonc' is not supported"), and the agent's
+sandbox has no JSON5 reader either. Plain JSON with `field_notes` went through.
+The PowerPoint agent then called that the safest way to pass data back and
+forth.
+
+Two fresh agents with no skill both chose plain JSON with the notes in their
+own keys, including one asked to put the notes in as comments. It refused, and
+said JSON has no comments. So the habit is already the default, and the
+`.jsonc` was a slip late in a long session. The skill adds what neither agent
+knew. One is the receiver's upload filter: neither checked it. The other is
+how to check the file, where the obvious tool is wrong. `vp fmt --check` passed a `.json` file with a `//`
+comment in it and failed valid JSON over layout. `jq empty` and
+`python3 -m json.tool` caught both a comment and a trailing comma.
 
 ## A note on writing skills
 
