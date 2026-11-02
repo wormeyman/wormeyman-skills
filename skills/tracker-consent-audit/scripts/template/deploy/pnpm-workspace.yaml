@@ -1,0 +1,6 @@
+# pnpm 12 stops `pnpm install` with ERR_PNPM_IGNORED_BUILDS when a dependency's
+# install script is not allowed here. workerd fetches its runtime binary and
+# esbuild checks its binary in those scripts.
+allowBuilds:
+  workerd: true
+  esbuild: true
