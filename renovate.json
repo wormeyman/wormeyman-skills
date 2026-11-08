@@ -13,5 +13,15 @@
     "minimumReleaseAge": "25 hours",
     "schedule": []
   },
-  "osvVulnerabilityAlerts": true
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "cf and @cloudflare/vite-plugin pin the same exact miniflare, workerd and @cloudflare/* packages. Bumping one alone installs two copies of each.",
+      "matchPackageNames": [
+        "cf",
+        "@cloudflare/vite-plugin"
+      ],
+      "groupName": "Cloudflare build tools"
+    }
+  ]
 }

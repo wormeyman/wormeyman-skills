@@ -22,6 +22,8 @@ def test_scaffold_fills_placeholders(tmp_path):
     assert f'"name": "{worker}"' in (dest / "deploy" / "package.json").read_text()
     assert "__ACCESS_AUD__" in (dest / "deploy" / "cloudflare.config.ts").read_text()  # filled later, by hand
     assert (dest / "tracker-audit-probe.php").is_file()
+    # pnpm 12 refuses to install without it: workerd's install script needs allowBuilds.
+    assert "workerd: true" in (dest / "deploy" / "pnpm-workspace.yaml").read_text()
     assert (dest / ".git").is_dir()
     for f in ("scripts/site_config.py", "README.md"):
         assert not re.search(r"__(SITE|SITE_HOST|AD_NETWORK|CANARY|WORKER_NAME|SITE_NAME|DATE)__", (dest / f).read_text()), f
