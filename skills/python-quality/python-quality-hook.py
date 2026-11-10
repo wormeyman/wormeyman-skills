@@ -1,7 +1,13 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """Claude Code PostToolUse hook: format, lint and type-check a Python file right after Claude edits it.
 
-Needs Python 3.11 or newer (for tomllib) as `python3` on PATH.
+Needs Python 3.11 or newer (for tomllib). The shebang has uv find one, because `#!/usr/bin/env
+python3` found macOS's 3.9 when /usr/bin came first on PATH, and the hook then failed silently on
+every edit. Run with an older Python anyway, it exits 2 and says so.
 
 Opt-in per repo, decided by the nearest folder above the edited file that has a pyrefly.toml or a
 pyproject.toml:
@@ -20,9 +26,18 @@ When everything is clean it prints nothing, so it costs no tokens. When problems
 them to stderr and exits 2, which Claude Code feeds back to Claude to fix.
 """
 
-import json
-import subprocess
 import sys
+
+# Exit 1 from a PostToolUse hook is not shown to Claude; exit 2 is. So a too-old Python fails loudly.
+if sys.version_info < (3, 11):  # noqa: UP036 - this runs before the 3.11 imports below
+    found = ".".join(map(str, sys.version_info[:3]))
+    print(f"python-quality hook needs Python 3.11+, got {found} ({sys.executable})", file=sys.stderr)
+    sys.exit(2)
+
+import json
+import os
+import shutil
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -53,7 +68,9 @@ def project_root(file: Path) -> tuple[Path, str] | None:
 def command(root: Path, tool: str) -> list[str] | None:
     """How to run `tool` in this repo: through uv for a uv project, else from its .venv, else None."""
     if (root / "uv.lock").is_file():
-        return ["uv", "run", "--frozen", "--quiet", tool]
+        # `uv run --script` sets UV to its own path, so this works even when uv is not on PATH
+        uv = os.environ.get("UV") or shutil.which("uv")
+        return [uv, "run", "--frozen", "--quiet", tool] if uv else None
     local = root / ".venv" / "bin" / tool  # e.g. a requirements.txt repo with a plain .venv
     return [str(local)] if local.is_file() else None
 
@@ -131,7 +148,7 @@ def main() -> int:
     missing = [name for name, cmd in (("ruff", ruff), (checker, types)) if cmd is None]
     if missing:
         problems.append(
-            f"{' and '.join(missing)} not installed in {root} (no uv.lock, no .venv/bin copy): "
+            f"{' and '.join(missing)} not found for {root} (a uv.lock repo needs uv; otherwise .venv/bin): "
             "install the dev tools so this repo's checks can run"
         )
     if ruff is not None:
