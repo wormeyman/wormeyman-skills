@@ -544,6 +544,19 @@ list, and set the baseline mode. Their notes made the hook better. It now
 says when a repo's tools are missing rather than passing silently, shows a
 misspelled config key, and accepts a `pyrefly.toml`.
 
+Its first day of real use found one more silent failure. The hook started with
+`#!/usr/bin/env python3`, and when Claude Code put `/usr/bin` first on PATH,
+that found macOS's Python 3.9. The hook needs 3.11, so it crashed on every
+edit. Claude Code does not show that kind of hook failure to Claude, so
+nothing looked wrong until a repo's own type check caught code the hook had
+let through. The hook now runs under `uv run --script`, which finds a new
+enough Python. When it does get an old one, it exits with a message Claude
+can see. Register it with uv's full path:
+
+```json
+"command": "/opt/homebrew/bin/uv run --quiet --script /path/to/python-quality-hook.py"
+```
+
 ## A note on writing skills
 
 These got shorter as they got better. The temptation is to write
