@@ -511,6 +511,39 @@ how to check the file, where the obvious tool is wrong. `vp fmt --check` passed 
 comment in it and failed valid JSON over layout. `jq empty` and
 `python3 -m json.tool` caught both a comment and a trailing comma.
 
+### [`python-quality`](skills/python-quality)
+
+Strict linting and type checking for a Python repo, enforced by tools rather
+than instructions, so that code an agent writes meets the bar without anyone
+asking. It ships a Claude Code hook that formats, lints and type-checks each
+file right after an edit. The hook says nothing when the file is clean, so it
+costs nothing until something fails.
+
+It came out of setting up four repos and benchmarking six type checkers on
+them, about 70,000 lines. Pyrefly in strict mode was the pick: 0.1-0.4 s a
+file against 0.5-2 s for pyright, with a real strict preset and a baseline
+for old code. ty was faster still but has no strict mode yet.
+
+Three fresh agents with no skill then did three jobs: set up a new repo,
+grandfather an old one, and move one off pyright. They did most of it well.
+They kept behavior the same, tested how their baselines behaved, and found an
+import trap on their own. So the skill holds only what they got wrong or could
+not know:
+
+- One rejected Pyrefly because it "only catches missing annotations rule by
+  rule". `preset = "strict"` turns them all on.
+- One chose ruff's `ALL` rules, which want a docstring on every function.
+- Pyrefly's default baseline matching can hide a new error. Once an old error
+  was fixed, a new error in a new function took its slot, and the default
+  mode reported nothing. `concise-description` caught it.
+- Pyrefly copies `pyrightconfig.json` on its own, so a straight migration
+  carries any search-path bug across.
+
+Run again with the skill, all three chose Pyrefly strict and a chosen rule
+list, and set the baseline mode. Their notes made the hook better. It now
+says when a repo's tools are missing rather than passing silently, shows a
+misspelled config key, and accepts a `pyrefly.toml`.
+
 ## A note on writing skills
 
 These got shorter as they got better. The temptation is to write
