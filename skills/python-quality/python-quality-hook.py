@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.14"  # the hook itself needs 3.11 (tomllib); this picks a current Python
 # dependencies = []
 # ///
 """Claude Code PostToolUse hook: format, lint and type-check a Python file right after Claude edits it.
