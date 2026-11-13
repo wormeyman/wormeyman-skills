@@ -16,9 +16,23 @@ DWARF) on an 8-core, 31 GiB Linux desktop, 2026-11-12.
   constant in about 2 minutes. Ghidra adds nothing there.
 - **For control flow - "which branch wins", "what order are checks done" - use Ghidra.**
   Reading branches out of raw assembly is slow and error-prone; the C shows them directly.
-- **Does the binary have debug info?** `file <bin>` says `with debug_info, not stripped`,
-  or `readelf -S <bin> | grep debug_info`. Without it, this fast path gives names from
-  the symbol table only, and Ghidra needs its slower function-finding analyzers.
+
+## What it covers
+
+Nothing here is specific to Factorio; it is just where the numbers come from. What
+matters is the binary. Check it with `file <bin>` (`with debug_info, not stripped`) or
+`readelf -S <bin> | grep debug_info`.
+
+| Binary | Fit |
+|---|---|
+| Linux ELF with DWARF, C or C++ | The case this was built for: fast import, names, types |
+| Linux ELF with symbols, no DWARF | Untested. Names and C++ signatures should still come from the symbol table, with no types |
+| Stripped ELF | Poor. Use `import --full-analysis` so Ghidra finds functions itself, and expect it to be slow on a big binary |
+| Windows PE | Not covered: debug info is a separate PDB, and names need Ghidra's Microsoft demangler |
+| macOS Mach-O | Not covered: debug info usually sits in a separate `.dSYM` the script does not load |
+
+The address shift and the disassemble step apply to any ELF. Signatures from mangled
+names apply to C++ only; plain C names carry no types.
 
 ## The one setting that matters
 
