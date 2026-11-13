@@ -38,7 +38,8 @@ names apply to C++ only; plain C names carry no types.
 
 Ghidra's default analysis runs about 30 analyzers over every function. On the Factorio
 binary that ran **past 2 hours without finishing** (16 GB heap). Turning everything off
-except **DWARF** and **Demangler GNU** finished in **4-6 minutes** with about 3 GB of
+except **DWARF** and **Demangler GNU** finished in **4-6 minutes** (2.5 on a 16-thread
+i5-14400F, where several functions then decompile in 6 s) with about 3 GB of
 heap. Skipping analysis entirely (`-noanalysis`) is fast but gives useless C: no names,
 no types, 9,522 lines for a 2.7 KB function.
 
@@ -50,7 +51,7 @@ PyGhidra) and Java 25+. The script's header pins the pyghidra wheel from
 
 ```bash
 S=~/.claude/skills/decompiling-with-ghidra/scripts/ghidra_decompile.py
-$S import  <binary> <project_dir>               # once per binary version, ~4-6 min
+$S import  <binary> <project_dir>               # once per binary version, ~2.5-6 min
 $S find    <project_dir> 'Surface::collide'     # names -> file + Ghidra addresses
 $S decompile <project_dir> 0x18eea40 'Surface::collideWithEntity' --out <dir>
 ```

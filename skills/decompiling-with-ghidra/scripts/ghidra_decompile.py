@@ -11,7 +11,7 @@
 
     ghidra_decompile.py import <binary> <project_dir> [--full-analysis]
         Import, then analyze with ONLY the DWARF and GNU demangler analyzers.
-        257 MB Factorio headless: ~4-6 min on an 8-core desktop. Ghidra's defaults ran past 2 h.
+        257 MB Factorio headless: ~2.5 min on an i5-14400F, ~4-6 min on an 8-core i7-6700. Ghidra's defaults ran past 2 h.
 
     ghidra_decompile.py find <project_dir> <name-substring> [--limit N]
         List functions whose full name contains the text, with FILE addresses
