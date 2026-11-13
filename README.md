@@ -14,10 +14,12 @@ number of other agent tools.
 | [`accessibility-audit`](skills/accessibility-audit) | Audits a page against WCAG 2.2 AA in light, dark and mobile, then fixes what it finds |
 | [`asking-for-decisions`](skills/asking-for-decisions) | Puts a decision to you as a prompt with real options, not as a question buried in prose |
 | [`cloudflare-migration-sweep`](skills/cloudflare-migration-sweep) | Finds every repo you can reach that still needs a Cloudflare migration or deprecation fix |
+| [`decompiling-with-ghidra`](skills/decompiling-with-ghidra) | Turns a function in a big binary with debug info into readable C in minutes, where Ghidra's defaults take hours |
 | [`dependency-audit`](skills/dependency-audit) | Decides what to update, remove or replace, and whether a new major is worth it here |
 | [`getting-command-output`](skills/getting-command-output) | Runs commands that need your password in a logged tmux window, and gets results back from other machines by Taildrop, so you never paste output |
 | [`passing-json-between-agents`](skills/passing-json-between-agents) | Hands data to another agent as plain JSON with its field notes inside, checked with a real parser |
 | [`publishing-behind-cloudflare-access`](skills/publishing-behind-cloudflare-access) | Puts a login in front of a static page, in an order that never leaves it public |
+| [`python-quality`](skills/python-quality) | Sets up strict linting and type checking for a Python repo, with a hook that checks each file as it is edited |
 | [`refactoring`](skills/refactoring) | Decides whether code is worth refactoring, from git history and the real test safety net |
 | [`sandboxed-execution`](skills/sandboxed-execution) | Picks a sandbox for code you do not trust, and proves it holds before running anything |
 | [`session-handoff`](skills/session-handoff) | Writes a self-contained prompt so a fresh session can pick up the work |
@@ -49,7 +51,7 @@ pulls in later changes.
 /plugin install wormeyman-skills@wormeyman
 ```
 
-This installs all eleven. Plugin skills carry the plugin's name, so you invoke
+This installs all thirteen. Plugin skills carry the plugin's name, so you invoke
 `/wormeyman-skills:refactoring`. Run `/plugin marketplace update wormeyman` for
 later changes, or turn on auto-update for the marketplace in `/plugin`.
 
@@ -556,6 +558,44 @@ can see. Register it with uv's full path:
 ```json
 "command": "/opt/homebrew/bin/uv run --quiet --script /path/to/python-quality-hook.py"
 ```
+
+### [`decompiling-with-ghidra`](skills/decompiling-with-ghidra)
+
+Read one function of a large binary as C, using Ghidra from a short Python
+script (PyGhidra, run by uv). It has three commands: `import` a binary once,
+`find` a function by name, and `decompile` a list of functions to `.c` files.
+
+It came out of reading Factorio's game code to match its map generator. The
+free Linux headless build is 257 MB and ships full debug info (DWARF). The
+first try used REA, an agent tool that drives Ghidra. Ghidra's default
+analysis was still running when a two-hour limit stopped it, and REA answers
+nothing until that finishes. Skipping analysis was fast but useless: 9,522
+lines of C for a 2.7 KB function, with no names and no types.
+
+The fix is one setting. Turn off every analyzer except DWARF and the GNU
+demangler, and the same binary is ready in 4 to 6 minutes using about 3 GB of
+memory. After that, each run decompiles several functions in about 15 seconds.
+The noise function that had come out as 9,522 lines came out as 180, with
+every known constant in plain sight.
+
+Three traps cost most of the night, and the script handles each one:
+
+- Ghidra moves a position-independent binary to `0x100000`, so an address from
+  `objdump` lands in the middle of the wrong function. The script reads the
+  original base from the file and shifts for you.
+- Debug-info-only analysis names functions but does not turn their bytes into
+  instructions. The script does that first.
+- On this binary every function came in as `void f(void)`, so the C was full of
+  raw register names. Two debug-info options that looked like the fix did not
+  help. Rebuilding each signature from its C++ mangled name, plus `this` for
+  methods, did.
+
+Before trusting the C on an open question, I decompiled a function whose rules
+I already had from reading the assembly by hand. The C showed the same compare.
+Only then did I use it on the collision code nobody had read yet. I checked
+the published Ghidra skills on skills.sh first. They wrap Ghidra's default
+analysis with a timeout, the same path that ran past two hours here. This one
+has not yet been tested on a fresh agent the way the others were.
 
 ## A note on writing skills
 

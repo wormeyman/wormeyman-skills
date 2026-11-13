@@ -9,7 +9,7 @@
     {
       "name": "wormeyman-skills",
       "source": "./",
-      "description": "Accessibility audits, dependency audits, refactoring, sandboxed execution, Cloudflare Access publishing, Cloudflare migration sweeps, tracker and consent audits, strict Python linting and type checking, decision prompts, command hand-offs, JSON hand-offs between agents and session handoffs."
+      "description": "Accessibility audits, dependency audits, refactoring, sandboxed execution, Cloudflare Access publishing, Cloudflare migration sweeps, tracker and consent audits, strict Python linting and type checking, Ghidra decompiling of large binaries with debug info, decision prompts, command hand-offs, JSON hand-offs between agents and session handoffs."
     }
   ]
 }
