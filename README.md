@@ -594,8 +594,17 @@ Before trusting the C on an open question, I decompiled a function whose rules
 I already had from reading the assembly by hand. The C showed the same compare.
 Only then did I use it on the collision code nobody had read yet. I checked
 the published Ghidra skills on skills.sh first. They wrap Ghidra's default
-analysis with a timeout, the same path that ran past two hours here. This one
-has not yet been tested on a fresh agent the way the others were.
+analysis with a timeout, the same path that ran past two hours here.
+
+Then I tested it on a small C++ program whose source I had, built three ways:
+with debug info, with symbols only, and stripped. Most of the C matched the
+source. One trap did not show up on Factorio. At `-O2` GCC makes "clones" of
+some functions, named like `wins(...) [clone .isra.0]`, that take different
+arguments than the declaration says. Forcing the declared signature onto one
+labelled a plain `int` as `this`, which reads as a pointer check and is wrong.
+The script now leaves clones alone and lets Ghidra infer their arguments, and
+that matched the machine code exactly. This skill has not yet been tested on a
+fresh agent the way the others were.
 
 ## A note on writing skills
 
