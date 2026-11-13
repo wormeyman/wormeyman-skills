@@ -11,7 +11,8 @@
 
     ghidra_decompile.py import <binary> <project_dir> [--full-analysis]
         Import, then analyze with ONLY the DWARF and GNU demangler analyzers.
-        257 MB Factorio headless: ~2.5 min on an i5-14400F, ~4-6 min on an 8-core i7-6700. Ghidra's defaults ran past 2 h.
+        257 MB Factorio headless: ~2.5 min on an i5-14400F, ~4-6 min on an 8-core i7-6700.
+        Ghidra's defaults ran past 2 h.
 
     ghidra_decompile.py find <project_dir> <name-substring> [--limit N]
         List functions whose full name contains the text, with FILE addresses
@@ -185,17 +186,26 @@ def mangled_name(program, addr) -> str | None:
     return None
 
 
-def apply_mangled_signature(program, fn) -> bool:
+def apply_mangled_signature(program, fn) -> str:
+    """Returns how the signature was set: "mangled", "clone, inferred", or "unchanged"."""
     from ghidra.app.util.demangler import DemanglerUtil
     from ghidra.app.util.demangler.gnu import GnuDemanglerOptions
     from ghidra.program.model.symbol import SourceType
 
     mangled = mangled_name(program, fn.getEntryPoint())
     if mangled is None:
-        return False
+        return "unchanged"
+    if "." in mangled:
+        # A compiler clone (_Z....isra.0, .constprop.0, .part.0, .cold): GCC changed its
+        # real arguments, e.g. passing a field instead of `this` or splitting a struct into
+        # registers. The declared C++ signature (and DWARF's) is then wrong, so drop it and
+        # let the decompiler infer the arguments. Measured on a known test program: forcing
+        # it labelled a plain int `this`.
+        let_decompiler_infer(program, fn)
+        return "clone, inferred"
     demangled = DemanglerUtil.demangle(program, mangled, fn.getEntryPoint())
     if demangled is None or demangled.isEmpty():
-        return False
+        return "unchanged"
     opts = GnuDemanglerOptions()
     opts.setApplySignature(True)
     opts.setApplyCallingConvention(True)
@@ -207,7 +217,21 @@ def apply_mangled_signature(program, fn) -> bool:
         ok = bool(obj.applyTo(program, fn.getEntryPoint(), opts, pyghidra.task_monitor())) or ok
     if ok:
         add_this_pointer(program, fn, demangled.get(0))
-    return ok
+    return "mangled" if ok else "unchanged"
+
+
+def let_decompiler_infer(program, fn) -> None:
+    from ghidra.program.model.data import DataType
+    from ghidra.program.model.listing import Function
+    from ghidra.program.model.symbol import SourceType
+    from java.util import ArrayList
+
+    fn.setCustomVariableStorage(False)
+    fn.setCallingConvention(program.getCompilerSpec().getDefaultCallingConvention().getName())
+    fn.replaceParameters(ArrayList(), Function.FunctionUpdateType.DYNAMIC_STORAGE_ALL_PARAMS,
+                         True, SourceType.DEFAULT)
+    fn.setReturnType(DataType.DEFAULT, SourceType.DEFAULT)
+    fn.setSignatureSource(SourceType.DEFAULT)
 
 
 def add_this_pointer(program, fn, demangled) -> None:
@@ -258,7 +282,7 @@ def cmd_decompile(project_dir: Path, targets: list[str], out_dir: Path, save: bo
                         fn = prepare(program, resolve(program, target, shift))
                         fixed = apply_mangled_signature(program, fn)
                         callees = list(fn.getCalledFunctions(pyghidra.task_monitor()))
-                        fixed_callees = sum(apply_mangled_signature(program, c) for c in callees)
+                        fixed_callees = sum(apply_mangled_signature(program, c) != "unchanged" for c in callees)
                         jobs.append((target, fn, fixed, len(callees), fixed_callees))
                 for job in jobs:
                     write_c(decomp, shift, out_dir, *job)
@@ -283,8 +307,8 @@ def write_c(decomp, shift, out_dir: Path, target, fn, fixed, n_callees, fixed_ca
         f"// {name}: file 0x{entry - shift:x}, ghidra 0x{entry:x} (asked for {target}),"
         f" body {fn.getBody().getNumAddresses()} bytes",
         f"// signature: {fn.getSignature().getPrototypeString()} | cc={fn.getCallingConventionName()}"
-        f" | from mangled name: {fixed}",
-        f"// callees: {n_callees}, fixed from mangled names: {fixed_callees}",
+        f" | set from: {fixed}",
+        f"// callees: {n_callees}, signatures set or inferred: {fixed_callees}",
         f"// decompile {ms:.0f} ms, completed: {res.decompileCompleted()}, error: {res.getErrorMessage()}",
         "// Mangled names carry no return type: a struct returned by value shows up as an",
         "// extra first pointer argument (the hidden return slot), shifting the names after it.",

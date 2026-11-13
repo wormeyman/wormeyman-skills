@@ -26,8 +26,8 @@ matters is the binary. Check it with `file <bin>` (`with debug_info, not strippe
 | Binary | Fit |
 |---|---|
 | Linux ELF with DWARF, C or C++ | The case this was built for: fast import, names, types |
-| Linux ELF with symbols, no DWARF | Untested. Names and C++ signatures should still come from the symbol table, with no types |
-| Stripped ELF | Poor. Use `import --full-analysis` so Ghidra finds functions itself, and expect it to be slow on a big binary |
+| Linux ELF with symbols, no DWARF | Good (tested): names, C++ argument types and correct logic; fields show as raw offsets like `this + 8` |
+| Stripped ELF | Logic still right on a small test binary, but `FUN_00101540` names and no types. Needs `import --full-analysis`, which will be slow on a big binary |
 | Windows PE | Not covered: debug info is a separate PDB, and names need Ghidra's Microsoft demangler |
 | macOS Mach-O | Not covered: debug info usually sits in a separate `.dSYM` the script does not load |
 
@@ -61,13 +61,17 @@ $S decompile <project_dir> 0x18eea40 'Surface::collideWithEntity' --out <dir>
   e.g. `~/ghidra-projects/factorio-2.1.23`.
 - `decompile` takes **file addresses** (what objdump/readelf print) or full demangled
   names, and shifts addresses for you. Several targets in one call share one start-up.
-- Each output `.c` starts with a header: both addresses, the signature used, and how
-  many callee signatures were fixed. Read it.
+- Each output `.c` starts with a header: both addresses, the signature used and where
+  it came from (`mangled`, `clone, inferred` or `unchanged`), and how many callee
+  signatures were set. Read it.
+- To check the skill on a new machine or Ghidra version, build a small C++ program
+  with `g++ -O2 -g`, without `-g`, and stripped, and compare the C with the source.
+  That is how traps 3 and 4 were confirmed (2026-11-12).
 - `--save` keeps the disassembly and signature fixes in the project, which helps if
   someone will open it in the GUI later.
 - Run it from a scratch directory, and send `--out` there too.
 
-## Three traps, and what the script does about each
+## Four traps, and what the script does about each
 
 1. **Addresses are shifted for PIE binaries.** Ghidra loads a position-independent
    ELF at `0x100000`, so objdump's `0x24f4370` is Ghidra's `0x25f4370`. Going to the
@@ -86,6 +90,15 @@ $S decompile <project_dir> 0x18eea40 'Surface::collideWithEntity' --out <dir>
    `__thiscall`). The script does this for the function and its callees. One gap
    remains: mangled names carry no return type, so a struct returned by value shows up
    as an extra first pointer argument and shifts the parameter names after it.
+4. **Compiler clones have different arguments from their declaration.** At `-O2` GCC
+   makes copies named like `Picker::wins(...) [clone .isra.0]` (also `.constprop`,
+   `.part`, `.cold`) that pass a field instead of `this`, or split a struct into
+   separate registers. Forcing the declared signature, or DWARF's, onto a clone gives
+   C that looks right and is wrong: on a test program it labelled a plain `int` as
+   `this` and printed `(int)this < 0`. The script leaves clones' arguments for the
+   decompiler to infer (the header says `set from: clone, inferred`), which matched the
+   machine code exactly. Clones read as `param_1..N`, so map them back to the source by
+   hand.
 
 ## Reading the C
 
