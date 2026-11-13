@@ -603,8 +603,23 @@ some functions, named like `wins(...) [clone .isra.0]`, that take different
 arguments than the declaration says. Forcing the declared signature onto one
 labelled a plain `int` as `this`, which reads as a pointer check and is wrong.
 The script now leaves clones alone and lets Ghidra infer their arguments, and
-that matched the machine code exactly. This skill has not yet been tested on a
-fresh agent the way the others were.
+that matched the machine code exactly.
+
+Two more agents then tested it: one followed the skill as a new user would, and
+one reviewed the script against a dozen test builds (C and C++, GCC and clang,
+32-bit and 64-bit). They found eight problems, all fixed:
+
+- Good debug-info signatures were being replaced by worse ones from the C++
+  name. The script now keeps them when they are real.
+- Library calls lost their arguments, and code after a `throw` ran on into the
+  next block, because the import never set up the PLT (the jump table for
+  imported functions) or marked functions that never return. It does both now.
+- An address in the middle of a function quietly became a fake new function.
+  It is now refused, with the real start.
+- Clang changes some functions' arguments without renaming them. Its debug info
+  marks them, Ghidra ignores the mark, and the script now reads it.
+- Smaller ones: overloads overwrote each other's output, a second import into one
+  folder broke the project, and `find` mixed up thunks, clones and imports.
 
 ## A note on writing skills
 
