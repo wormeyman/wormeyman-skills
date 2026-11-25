@@ -154,6 +154,11 @@ their signatures set, and where the signature came from:
   a register across a call to its own function, and the decompiler then drops it. The
   format string is in the C, so count its `%` codes against the arguments.
 - **`catch` blocks do not show.** A `try`/`catch` reads as the `try` part only.
+- **Do not read float width (f32 or f64) off the C.** In Factorio 2.1.23,
+  `getRotatedVertices` showed `float` in the C where its disassembly works in f64
+  (2026-11-25). When the width matters, as in porting numeric code bit for bit, read
+  the instructions with objdump: `mulss` and `addss` work in f32, `mulsd` and `addsd`
+  in f64, and `cvtss2sd` or `cvtsd2ss` marks a widening or a narrowing.
 - Harmless noise: `DuplicateNameException: codecvt already exists` while importing,
   a `DWARFImportSummary` ERROR list of unrecoverable location expressions, and
   `Unresolved local var` comments.
