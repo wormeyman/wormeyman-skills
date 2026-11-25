@@ -679,9 +679,17 @@ def cmd_decompile(project_dir: Path, targets: list[str], out_dir: Path, save: bo
                     def settle(f) -> str:
                         key = f.getEntryPoint().getOffset()
                         if key not in labels:
-                            label = set_signature(program, f, nocall)
-                            if label.startswith("inferred"):
-                                label += settle_inferred(program, decomp, f)
+                            # One symbol Ghidra cannot handle must not end the batch: on
+                            # Factorio 2.1.23 the demangler threw "Name cannot be blank" on
+                            # two templates, and every other target was lost with them.
+                            try:
+                                label = set_signature(program, f, nocall)
+                                if label.startswith("inferred"):
+                                    label += settle_inferred(program, decomp, f)
+                            except Exception as err:  # also Java exceptions, through JPype
+                                text = str(err).strip()
+                                first = text.splitlines()[0][:100] if text else type(err).__name__
+                                label = f"none (signature step failed: {first})"
                             labels[key] = label
                         return labels[key]
 
@@ -695,7 +703,8 @@ def cmd_decompile(project_dir: Path, targets: list[str], out_dir: Path, save: bo
                         # decompiler infers for it depends on its callees' arguments.
                         callees = [c for c in fn.getCalledFunctions(pyghidra.task_monitor())
                                    if not c.isExternal() and not is_plt_stub(c) and c != fn]
-                        done = sum(not settle(c).startswith("debug info") for c in callees)
+                        done = sum(not settle(c).startswith(("debug info", "none (signature step failed"))
+                                   for c in callees)
                         source = settle(fn)
                         jobs.append((target, fn, created, source, len(callees), done))
                 decomp.flushCache()

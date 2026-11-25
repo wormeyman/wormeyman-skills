@@ -74,6 +74,13 @@ $S decompile <project_dir> 0x18eea40 'Surface::collideWithEntity' --out <dir>
   address outside code (for example in `.rodata`), bad hex, an unknown name, and a name
   that fits several functions (overloads, thunks), which lists them all. The rest of the
   batch still runs, and the exit code is 1. Read the `SKIPPED` lines.
+- **A function whose signature step fails is still decompiled**, with the header
+  `none (signature step failed: ...)`. On Factorio 2.1.23 the demangler threw
+  `Name cannot be blank` on two `getOrCreate` templates, which used to end the whole
+  batch. Its C reads like a stripped function: `param_1..N`.
+- **A large batch is cheap.** All 786 map-gen functions of Factorio 2.1.23 (494 KB of
+  code) decompiled in one call in 37 s on a 16-thread machine, median 3 ms each. The
+  slowest was a 37 KB function at 5.7 s. Reading the C is the cost, not producing it.
 - Each output is `<name>@<file address>.c`, so overloads do not overwrite each other.
 - `find` lists functions in the binary only. Marks: `[clone .isra.0]`, `[thunk]`,
   `[PLT stub for an import]` and `[arguments changed by clang]`. Each line ends with the
@@ -159,6 +166,13 @@ their signatures set, and where the signature came from:
   (2026-11-25). When the width matters, as in porting numeric code bit for bit, read
   the instructions with objdump: `mulss` and `addss` work in f32, `mulsd` and `addsd`
   in f64, and `cvtss2sd` or `cvtsd2ss` marks a widening or a narrowing.
+- **Do not read float order or NaN branches off the C either.** Float addition is not
+  associative, and Ghidra drops the grouping. In Factorio 2.1.23 `pow` printed
+  `A + B + Y + C`, read as `((A+B)+Y)+C`, where the code computes `A + (B + (Y + C))`.
+  In `If::run` it rewrote `ucomiss cond,0; ja then` as `!(cond <= 0)`, which reads as
+  NaN taking the then-branch; in the code NaN takes the else-branch. Three of 71
+  functions read misled this way (2026-11-25). For bit-exact work the C is a map,
+  and objdump is the evidence.
 - Harmless noise: `DuplicateNameException: codecvt already exists` while importing,
   a `DWARFImportSummary` ERROR list of unrecoverable location expressions, and
   `Unresolved local var` comments.
