@@ -21,13 +21,22 @@ one.
 Measure first, then ask the user how far to go. The usual menu:
 
 1. A read-only audit: grade every test, change nothing, let the user pick.
-2. A campaign with a target, such as "a fifth of the browser suite's time".
-3. One area only.
-4. Leave it alone.
+2. A weak-test pass: look only for tests that cannot fail, or that will fail
+   one day with no bug (the cheap pass below). Grade nothing else, cut
+   nothing, and land only the proven fixes.
+3. A campaign with a target, such as "a fifth of the browser suite's time".
+4. One area only.
+5. Leave it alone.
 
 Recommend the read-only audit unless the user has already chosen. Deleting
 tests is easy to do and hard to review afterwards, so the user picks the cuts
 from evidence, not from a promise.
+
+Recommend the weak-test pass instead when cuts cannot pay: the whole suite
+runs in seconds, and tests are well under half the tracked lines. On one such
+suite (2.5 s, tests 26% of lines), two read-only agents found 12 tests that
+could not fail on the bug they named, and every one held up under its proof.
+A count target there buys nothing but a thinner suite.
 
 ## Measure
 
@@ -153,6 +162,15 @@ test goes red. With the script, that is `--expect-pass` on the old test, then
 `--expect-fail` on the fixed one. If the old test goes red on the first run,
 the claim was wrong; leave the test alone. Fixes save no time, and they are
 often the most useful result of a run.
+
+Some fixes remove rows: a generated table can hold rows that compare nothing,
+yet still count toward a "compared enough cases" floor. The second run then
+has nothing to break, and the script reports INCONCLUSIVE ("no test name
+contains this text"). That is expected. The proof is different: show that
+each removed row ran no assertion, that no remaining row is empty (or empty
+on one side only), and that any count floor still holds. Remove a row only
+when both sides of its comparison are empty, so a real one-sided mismatch
+still gets a test.
 
 ## Moving a test down a layer
 

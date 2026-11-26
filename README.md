@@ -701,6 +701,14 @@ plus one fix:
   commits list no files, and a merge is how the first run's lost unit test
   disappeared.
 
+A third run, on the first run's own Vitest suite, needed none of the cutting
+machinery. That suite ran in 2.5 s and was 26% of the tracked lines, so cuts
+could save nothing. A narrower weak-test pass, which hunted only for tests
+that could not fail, found 12, and each held up under its proof. That pass is
+now on the skill's menu, with when to recommend it. One of the 12 fixes
+removed table rows that compared nothing, which the old proof could not
+check, so the skill now says how to prove a fix like that.
+
 The smaller ideas borrowed from darkroomengineering's `audit`, fallow's
 `fallow-mutation`, obra's `writing-good-tests` and OpenClaw's
 `openclaw-test-performance` are credited one by one at the end of the skill.
