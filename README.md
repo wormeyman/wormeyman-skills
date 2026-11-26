@@ -18,6 +18,7 @@ number of other agent tools.
 | [`dependency-audit`](skills/dependency-audit) | Decides what to update, remove or replace, and whether a new major is worth it here |
 | [`getting-command-output`](skills/getting-command-output) | Runs commands that need your password in a logged tmux window, and gets results back from other machines by Taildrop, so you never paste output |
 | [`passing-json-between-agents`](skills/passing-json-between-agents) | Hands data to another agent as plain JSON with its field notes inside, checked with a real parser |
+| [`pruning-tests`](skills/pruning-tests) | Finds the tests that cannot fail or that another test already covers, and proves each cut by breaking the code on purpose |
 | [`publishing-behind-cloudflare-access`](skills/publishing-behind-cloudflare-access) | Puts a login in front of a static page, in an order that never leaves it public |
 | [`python-quality`](skills/python-quality) | Sets up strict linting and type checking for a Python repo, with a hook that checks each file as it is edited |
 | [`refactoring`](skills/refactoring) | Decides whether code is worth refactoring, from git history and the real test safety net |
@@ -51,7 +52,7 @@ pulls in later changes.
 /plugin install wormeyman-skills@wormeyman
 ```
 
-This installs all thirteen. Plugin skills carry the plugin's name, so you invoke
+This installs all fourteen. Plugin skills carry the plugin's name, so you invoke
 `/wormeyman-skills:refactoring`. Run `/plugin marketplace update wormeyman` for
 later changes, or turn on auto-update for the marketplace in `/plugin`.
 
@@ -620,6 +621,68 @@ one reviewed the script against a dozen test builds (C and C++, GCC and clang,
   marks them, Ghidra ignores the mark, and the script now reads it.
 - Smaller ones: overloads overwrote each other's output, a second import into one
   folder broke the project, and `find` mixed up thunks, clones and imports.
+
+### [`pruning-tests`](skills/pruning-tests)
+
+Finds the tests in a suite that are not worth their cost, proves each cut is
+safe, and lands the cuts. The rule underneath it: a test earns its place when
+it can fail for a real bug that no cheaper test would catch.
+
+It grew out of a real run. I used Matthew Blode's
+[`test-audit`](https://github.com/mblode/agent-skills/tree/f0b5cd4fc28a3598ecc01a8e480ea64c8a92d0c3/skills/test-audit),
+itself adapted from Peter Steinberger's and Ayaan Zaidi's
+[OpenClaw skill](https://github.com/openclaw/openclaw/tree/80930af448ebabc84174146b56bc106d37fab3b4/.agents/skills/test-audit),
+on a browser-heavy suite: 96 Playwright files and 535 tests. Eight read-only
+agents graded every test. The cuts that landed removed 33 test runs, about 12%
+of the suite's CI time, and each was proved by breaking the product code and
+watching the kept test go red. Their method is the core of this one, the
+R/F/C/D ledger and an agent per area especially, and `NOTICE` carries both MIT
+notices.
+
+Then I read about twenty other published test skills: mutation testing,
+anti-pattern catalogues, CI slimming, flaky-test triage, suite "doctors". They
+are good at listing what a junk test looks like. Almost none of them can prove
+a cut on a browser suite, because they rely on coverage or a mutation tool, and
+neither works there. That gap is where the run went wrong, or nearly did, so
+it is where this skill differs:
+
+- **It proves cuts by breaking the code, for any runner.**
+  [`scripts/mutation_check.py`](skills/pruning-tests/scripts/mutation_check.py)
+  makes a one-line break, runs the tests, reads which ones failed from JUnit
+  XML (Playwright, Vitest, Jest and pytest all write it), and restores the
+  file with a checksum. It runs the unbroken code first, because a keeper that
+  already fails proves nothing.
+- **A failure only counts if it is the keeper's own assertion.** A timeout or
+  a page that never loaded would fail any test. The script reports those as
+  inconclusive, an idea from CircleCI's `chunk-testing-gaps`.
+- **It asks how the keeper reaches the code.** The run's worst near-miss was
+  three "keepers" for one cut, of which only one went through the real load
+  path. The other two read the same data another way and stayed green when
+  that path was broken. Every keeper now needs a line on what it does not
+  prove, after gstack's `test-audit`.
+- **Moving a test down a layer is a verdict of its own**, as in
+  thedavidweng's `ci-slim`. The run found a unit test that a merge had
+  deleted, leaving eight slow browser rows as the only guard. Restoring it let
+  six of them go.
+- **Savings come from per-test CI timings**, medians over several runs, not
+  from a local run or one job's wall time. Runner speed varied by 2x or more.
+
+Writing the script turned up two more traps, each now pinned by a test:
+
+- Python's bytecode cache trusts a file's mtime to the second and its size. A
+  mutation that keeps the size, written in the same second as the run before
+  it, quietly runs the old code, and every keeper looks like it survived. The
+  script moves the mutant's file time and puts the original back.
+- Run on the real Playwright suite, the first version called a genuine kill
+  harness noise. The keeper was a polled assertion that ran out of time, so
+  "Timeout 60000ms exceeded" sat in its call log under an
+  `expect(...).not.toBe(...)` headline. The script now judges by the headline
+  alone. A break that stops the app loading still reads as inconclusive: it
+  fails in the `beforeEach` hook.
+
+The smaller ideas borrowed from darkroomengineering's `audit`, fallow's
+`fallow-mutation`, obra's `writing-good-tests` and OpenClaw's
+`openclaw-test-performance` are credited one by one at the end of the skill.
 
 ## A note on writing skills
 
