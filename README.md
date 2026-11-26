@@ -680,6 +680,27 @@ Writing the script turned up two more traps, each now pinned by a test:
   alone. A break that stops the app loading still reads as inconclusive: it
   fails in the `beforeEach` hook.
 
+A second run, on a unit-heavy suite (3,286 Vitest tests for a Vue site and
+its Cloudflare Worker), added four lessons the browser run had not needed,
+plus one fix:
+
+- **A fix gets the same proof as a cut.** 26 tests could not fail on the bug
+  their title names. Each was shown green under a break, then red under the
+  same break once fixed.
+- **Some tests fail with no bug.** One read the newest year from the live
+  data file and would have gone red the day next year's figure was entered.
+  That is the opposite of a test that cannot fail, and the old junk lists
+  miss it.
+- **Shared setup beats cuts for speed.** One emulator per file instead of one
+  per test took the suite from 188 s to 52 s, with no test removed. The 131
+  proven cuts made after that saved lines, not time.
+- **A table row needs a break of its own.** A count target is easiest to
+  meet by thinning big tables, and a general break that any row catches says
+  nothing about the row that was removed.
+- The lost-test search now passes `-m` to `git log`. Without it, merge
+  commits list no files, and a merge is how the first run's lost unit test
+  disappeared.
+
 The smaller ideas borrowed from darkroomengineering's `audit`, fallow's
 `fallow-mutation`, obra's `writing-good-tests` and OpenClaw's
 `openclaw-test-performance` are credited one by one at the end of the skill.
