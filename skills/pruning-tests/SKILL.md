@@ -65,6 +65,12 @@ Each of these is a suspicion, not a verdict. Confirm it by breaking the
 product code the test claims to guard (next section) and watching the test
 stay green.
 
+Look for the opposite too: a test that will fail one day with nothing wrong.
+It reads data that changes on its own, such as today's date, the newest year
+in a data file, or a figure someone updates every year. Mark it F and pin it
+to a fixed copy of the data. Prove it the other way round: change the data,
+not the code, and the old test goes red while the fixed one stays green.
+
 ## Grading
 
 Every test gets one mark and one line of evidence:
@@ -125,12 +131,28 @@ Read the result carefully:
 - **Run the proof against the set of tests left after all the cuts in the
   batch.** Two cuts can each name the other as a keeper.
 - **When two tests catch exactly the same breaks, cut one, not both.**
+- **A table row needs a break of its own.** A row that feeds a different
+  entity, rotation or data entry than its neighbours is its own test, even
+  when they share a branch. Trim it only with a break that reaches that row's
+  input alone (its data entry, or a branch only it takes) and that a remaining
+  row still catches. A general break that every row catches proves nothing
+  about the row you removed. If a count target can only be met by thinning
+  such rows, fall short of the target instead.
 - **Watch for caches that trust file times.** A break that keeps the file the
   same size, made within the same second, can run stale compiled code. The
   script moves the file time to prevent this; a hand edit does not.
 
 If a break you expected to be caught survives every test, you have found a
 gap, not a cut. Report it.
+
+### Proving a fix
+
+An F gets the same proof, in two runs. Break the code, and the old test stays
+green: the weakness is real. Fix the test, make the same break, and the fixed
+test goes red. With the script, that is `--expect-pass` on the old test, then
+`--expect-fail` on the fixed one. If the old test goes red on the first run,
+the claim was wrong; leave the test alone. Fixes save no time, and they are
+often the most useful result of a run.
 
 ## Moving a test down a layer
 
@@ -141,9 +163,31 @@ They can move to a unit test that runs the same logic in milliseconds.
 - Keep one browser test for the wiring the unit test cannot see: the click
   reaching the handler, the result written back to the live screen.
 - Check whether a unit test for this already existed and was lost.
-  `git log --diff-filter=D --stat -- '*.test.*'` lists deleted test files,
-  and a merge commit can drop one silently. Restoring a lost test is often
-  the cheapest move of all.
+  `git log -m --diff-filter=D --stat -- '*.test.*'` lists deleted test files.
+  Keep the `-m`: without it, `git log` shows no files for merge commits, and
+  a merge is where a test is most often dropped silently. Restoring a lost
+  test is often the cheapest move of all.
+
+## Speed without cutting
+
+Before counting the seconds a cut would save, look at what each test sets
+up. When every test starts its own database, emulator or browser context,
+most of the suite's time is setup, and cuts barely move it. Sharing that
+setup per file, with a reset before each test, keeps every assertion and can
+save more than all the cuts together. One Vitest suite went from 188 s to
+52 s that way with no test removed.
+
+- Reset everything a test can write: every table, key and stored file, plus
+  fake clocks and module-level state.
+- Await background work (a `waitUntil`, a promise nobody awaits) before the
+  next reset, or it lands in the next test's store.
+- Keep a fresh instance for the few tests that need one, such as migrations
+  applied in steps.
+- Run each converted file in shuffled order (`vitest --sequence.shuffle`, or
+  the runner's equivalent) to catch a test that leans on what an earlier one
+  left behind.
+
+This is a speedup, not a cut. Report it apart from the cuts.
 
 ## Landing the cuts
 
